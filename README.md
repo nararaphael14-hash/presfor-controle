@@ -179,3 +179,16 @@ pip install -r requirements-dev.txt && pytest -q
 Couvre normalisation, comparaison (OK/tolérance/partiel/inversion/confusions/incertain), MRZ (spécimens OACI),
 chemin Claude avec client factice (JSON forcé, validation, retry), CSV DIGIFOR, pipeline, cache et API
 (dont zip-slip).
+
+## Contrôle pièce CF (page `/cf`)
+Constitue une **base de pièces scannées validées** à partir d'un export CF (CSV multi-tables + dossier `Images/`) :
+- Une demande = une ligne de la table **applicant** (`APT…` → numéro de demande). Le code est fractionné : `380` → **Sous-prefecture**
+  (table `subprefecture`, `codeSubPrefecture` → `label`), `380-014` → **Village** (table `village`, `codeVillage` → `label`).
+- Scans rattachés par la colonne `photoidentity` puis par le nom de fichier (`<demande>_0` recto, `_1` verso).
+- **Invalidée** : image floue / trop sombre / surexposée / quasi vide / trop petite / corrompue ; **pièce scannée en double** (recto ×2 ou verso ×2 :
+  même fichier, quasi identique ou même face photographiée deux fois) ; **face manquante** ; aucun scan ; **numéro de pièce du scan ≠ table applicant**.
+- **Validée** (et seulement elle) : qualité correcte, recto + verso distincts, et **numéro de pièce lu sur le scan identique à `identityDocumentNumber`**
+  → copiée dans la base `DATA_DIR/cf_valid` (SQLite `pieces_valides.db` + `pieces/<village>/<demande>/…`).
+- **À vérifier** : tout est correct mais le numéro n'a pas pu être confirmé (lecture absente/incertaine) → ni stockée, ni invalidée.
+- Sorties : **Excel des invalidées** (feuille « Invalidées » ; feuilles annexes « À vérifier » et « Scans sans demande ») et **ZIP de la base validée**.
+- Le contrôle démarre automatiquement après l'import. Le moteur Claude lit nettement mieux les numéros : avec Tesseract seul, beaucoup de demandes restent « À vérifier ».

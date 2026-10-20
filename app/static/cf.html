@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRESFOR — Contrôle pièce CF</title>
+<style>
+:root{--g:#163f38;--g2:#1f5a50;--g3:#e7f0ee;--bg:#f4f6f5;--card:#fff;--tx:#18211f;--mut:#62706c;--line:#dbe3e0;--ok:#1b7a4b;--okbg:#e3f4ea;--warn:#a55a00;--warnbg:#fff1dc;--bad:#b3261e;--badbg:#fde9e7}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;color:var(--tx);display:inline-flex;align-items:center;gap:6px}
+button:hover:not(:disabled){border-color:var(--g2)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--g);color:#fff;border-color:var(--g)}
+button.primary:hover:not(:disabled){background:var(--g2)}
+button.link{border:0;background:none;padding:0;color:var(--g2);text-decoration:underline}
+input,select,textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;background:#fff}
+textarea{min-height:76px;resize:vertical}
+label{display:block;font-size:12px;color:var(--mut)}
+label input,label textarea{margin-top:3px;color:var(--tx);font-size:14px}
+.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.shell.collapsed{grid-template-columns:0 1fr}
+.sidebar{background:var(--g);color:#d7e6e2;padding:18px 14px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.collapsed .sidebar{padding:0}
+.brand{font-weight:700;font-size:20px;color:#fff;margin-bottom:10px}
+.brand small{display:block;font-weight:400;font-size:11px;opacity:.75}
+.side-label{font-size:10px;letter-spacing:.12em;opacity:.6;margin:12px 6px 2px}
+.nav{background:none;border:0;color:#d7e6e2;width:100%;justify-content:flex-start;padding:10px;border-radius:8px}
+.nav:hover:not(:disabled){background:rgba(255,255,255,.08)}
+.nav.active{background:rgba(255,255,255,.16);color:#fff}
+.side-note{margin-top:auto;background:rgba(255,255,255,.08);padding:12px;border-radius:10px;font-size:12px}
+main{min-width:0}
+header.top{display:flex;align-items:center;gap:10px;padding:10px 24px;background:#fff;border-bottom:1px solid var(--line)}
+.crumb{color:var(--mut);flex:1}
+.content{padding:22px 24px 60px;max-width:1500px}
+.heading{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--g2);font-weight:600}
+h1{margin:2px 0 2px;font-size:26px}
+h2{margin:0 0 12px;font-size:16px}
+.heading p{margin:0;color:var(--mut)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.menu{position:relative}
+.pop{position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px;z-index:20;min-width:240px;display:none}
+.menu.open .pop{display:block}
+.pop button{width:100%;border:0;justify-content:flex-start}
+.pop button:hover:not(:disabled){background:var(--g3)}
+.banner{display:flex;align-items:center;gap:10px;background:var(--g3);border:1px solid #c5dbd5;padding:10px 14px;border-radius:10px;margin-bottom:12px}
+.banner.error{background:var(--badbg);border-color:#f2b8b5;color:var(--bad)}
+.banner>div{flex:1}
+.bar{height:6px;background:#cfe0dc;border-radius:3px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--g2);transition:width .3s}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
+.stats>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stats span{color:var(--mut);font-size:12px}
+.stats strong{display:block;font-size:28px}
+.stats small{color:var(--mut)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.campaign-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.campaign-bar input{max-width:360px;font-weight:600}
+.campaign-bar span{color:var(--mut);font-size:12px}
+.filters{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.filters input{max-width:340px}.filters select{max-width:200px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;color:var(--mut);padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 8px;border-bottom:1px solid #eef2f0;vertical-align:top}
+tr.row{cursor:pointer}tr.row:hover td{background:#f7faf9}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge.ok{background:var(--okbg);color:var(--ok)}.badge.warning{background:var(--warnbg);color:var(--warn)}.badge.bad{background:var(--badbg);color:var(--bad)}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;color:var(--mut)}
+.pager select{width:auto}
+.detail-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.detail-head h2{font-size:22px;margin:0}.detail-head p{margin:0;color:var(--mut)}.detail-head .sp{flex:1}
+.detail-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+@media(max-width:1000px){.detail-grid{grid-template-columns:1fr}.shell{grid-template-columns:1fr}.sidebar{display:none}}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+details.actor{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:#fcfdfd}
+details.actor>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px}
+details.actor>summary::-webkit-details-marker{display:none}
+.actor-name{flex:1}.actor-name small{display:block;color:var(--mut)}
+.actor-body{padding:4px 12px 14px;border-top:1px solid var(--line)}
+.checkbox{display:flex;align-items:center;gap:8px;margin:10px 0;color:var(--tx);font-size:14px}.checkbox input{width:auto;margin:0}
+.sticker{padding:9px 12px;border-radius:8px;margin:8px 0;font-weight:500}
+.sticker.valid{background:var(--okbg);color:var(--ok)}.sticker.invalid{background:var(--badbg);color:var(--bad)}.sticker.pending{background:var(--warnbg);color:var(--warn)}
+.idres{display:flex;gap:18px;flex-wrap:wrap;color:var(--mut);font-size:13px;margin-bottom:6px}.idres strong{color:var(--tx)}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumb{width:92px;height:70px;border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:#eef2f0;padding:0}
+.thumb.sel{border-color:var(--g2)}.thumb img{width:100%;height:100%;object-fit:cover}
+.viewer .stage{background:#1d2523;border-radius:10px;height:430px;overflow:auto;display:flex;align-items:center;justify-content:center}
+.viewer img{max-width:100%;max-height:100%;transition:transform .2s}
+.viewer .stage.zoom img{max-width:none;max-height:none;cursor:zoom-out}
+.viewer .tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}
+.viewer .hint{color:var(--mut);font-size:12px;margin:6px 0 0}
+.obs{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #eef2f0}
+.obs>div{flex:1}.obs p{margin:2px 0 0;white-space:pre-wrap}
+.tag{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.count{background:var(--g3);color:var(--g);border-radius:99px;padding:1px 8px;font-size:12px}
+.success{color:var(--ok);font-weight:600}
+pre{background:#f1f5f4;padding:8px;border-radius:8px;overflow:auto;max-height:220px;font-size:12px;white-space:pre-wrap}
+.hrow{display:flex;gap:10px;align-items:stretch;margin-bottom:8px}
+.hrow .hist{flex:1;justify-content:flex-start;text-align:left;padding:12px 14px}
+.hist small{display:block;color:var(--mut)}
+.empty{padding:30px;text-align:center;color:var(--mut)}
+.danger{color:var(--bad)}
+</style>
+</head><body><div id="app"></div>
+<input type="file" id="fileAny" multiple hidden accept=".csv,.zip,.jpg,.jpeg,.png,.webp,.tif,.tiff">
+<input type="file" id="fileDir" multiple hidden webkitdirectory directory>
+<script src="/static/jszip.min.js"></script>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const S={sid:null,data:null,sessions:[],valid:[],filter:"INVALIDE",search:"",sel:null,busy:"",progress:null,error:"",notice:"",backend:"auto",job:null,sidebar:true,page:0,size:20,health:null};
+let pollT=null;
+async function api(u,o={}){const r=await fetch(u,o);if(!r.ok){let m="HTTP "+r.status;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(typeof m==="string"?m:JSON.stringify(m))}return r}
+const json=async(u,o)=>(await api(u,o)).json();
+const baseName=n=>String(n).replace(/\\/g,"/").split("/").pop();
+function post(url,fd,onProg){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open("POST",url);x.upload.onprogress=e=>e.lengthComputable&&onProg(e.loaded/e.total);
+ x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch{}x.status<300?res(j):rej(new Error(typeof j.detail==="string"?j.detail:"HTTP "+x.status))};x.onerror=()=>rej(new Error("Connexion interrompue pendant l’envoi."));x.send(fd)})}
+async function expand(files){const out=[];for(const f of files){if(!/\.zip$/i.test(f.name)){out.push(f);continue}
+ S.busy="Ouverture de "+f.name+"…";render();const z=await JSZip.loadAsync(f);const es=Object.values(z.files).filter(e=>!e.dir&&!/__MACOSX|(^|\/)\./.test(e.name));let i=0;
+ for(const e of es){const n=baseName(e.name);if(!/\.(csv|jpe?g|png|webp|tiff?)$/i.test(n))continue;S.progress=100*(++i)/es.length;S.busy=`Lecture de ${f.name} : ${i}/${es.length}`;if(i%20===0){render();await new Promise(r=>setTimeout(r,0))}out.push(new File([await e.async("blob")],n))}}return out}
+async function importFiles(list){const files=[...list];if(!files.length)return;await run("Préparation de l’import…",async()=>{
+ const fd0=new FormData();fd0.append("title",(files[0].name||"Export CF").replace(/\.\w+$/,""));const meta=await json("/api/cf",{method:"POST",body:fd0});S.sid=meta.id;S.data=null;
+ const ok=await expand(files);const batches=[];let b=[],sz=0;for(const f of ok){if(b.length&&(b.length>=40||sz+f.size>12e6)){batches.push(b);b=[];sz=0}b.push(f);sz+=f.size}if(b.length)batches.push(b);
+ let imgs=0;for(const [i,bt] of batches.entries()){const fd=new FormData();bt.forEach(f=>fd.append("files",f,f.name));
+  const r=await post(`/api/cf/${S.sid}/files`,fd,fr=>{S.progress=100*(i+fr)/batches.length;S.busy=`Envoi des fichiers : lot ${i+1}/${batches.length} (${Math.round(fr*100)} %)`;render()});imgs=r.total_images}
+ S.notice=`${imgs} images envoyées — contrôle automatique lancé`;S.auto=true})}
+async function startRun(){const fd=new FormData();fd.append("backend",S.backend);try{S.job=await json(`/api/cf/${S.sid}/run`,{method:"POST",body:fd})}catch(e){S.error=e.message;render();return}poll()}
+function poll(){clearTimeout(pollT);pollT=setTimeout(async()=>{try{S.job=await json(`/api/cf/${S.sid}/status`);if(S.job.status==="running"){render();poll();return}
+ if(S.job.status==="done"){S.data=await json(`/api/cf/${S.sid}/results`);S.valid=await json("/api/cf/valid/list");S.notice="Contrôle terminé — pièces validées enregistrées dans la base.";S.filter="INVALIDE";S.page=0}
+ else if(S.job.status==="error")S.error="Contrôle CF : "+S.job.error;S.job=null;render()}catch(e){S.error=e.message;S.job=null;render()}},1200)}
+async function run(label,fn){S.error="";S.busy=label;S.progress=null;render();try{await fn()}catch(e){S.error=e.message}S.busy="";S.progress=null;render();if(S.auto){S.auto=false;await startRun()}}
+async function download(url,name){await run("Préparation du fichier…",async()=>{const r=await api(url);const bl=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)})}
+const chip=s=>s==="VALIDE"?'<span class="badge ok">Validée</span>':s==="INVALIDE"?'<span class="badge bad">Invalidée</span>':'<span class="badge warning">À vérifier</span>';
+function rows(){const q=S.search.toLowerCase();return (S.data?.results||[]).filter(r=>(S.filter==="Tous"||r.statut===S.filter)&&(`${r.demande} ${r.nom} ${r.prenoms} ${r.village} ${r.sous_prefecture} ${r.numero_csv}`.toLowerCase().includes(q)))}
+function render(){const D=S.data,sm=D?.summary||{},job=S.job?.status==="running"?S.job:null;const list=rows();const pages=Math.max(1,Math.ceil(list.length/S.size));if(S.page>=pages)S.page=pages-1;const sl=list.slice(S.page*S.size,(S.page+1)*S.size);
+const sel=S.sel&&D?D.results.find(r=>r.demande===S.sel):null;
+$("#app").innerHTML=`<div class="shell ${S.sidebar?"":"collapsed"}"><aside class="sidebar"><div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
+<a class="nav" style="text-decoration:none;display:block;padding:10px" href="/">📋 Contrats</a><button class="nav active">🗂 Contrôle pièce CF</button><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
+<div class="side-note"><strong>Base des pièces validées</strong><p>${S.valid.length} demande(s) stockée(s).<br>Seules les pièces valides y entrent.</p></div></aside>
+<main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle pièce CF</div></header><div class="content">
+<div class="heading"><div><span class="eyebrow">CERTIFICAT FONCIER</span><h1>Contrôle pièce CF</h1><p>Détecte les scans flous, illisibles, mal cadrés ou en double, et vérifie le numéro de pièce avec la table applicant.</p></div>
+<div class="actions"><div class="menu"><button data-act="menu">⬆ Importer l’export CF ▾</button><div class="pop"><button data-act="pick" data-t="any">⬆ Fichiers / ZIP</button><button data-act="pick" data-t="dir">📁 Dossier</button></div></div>
+<select id="backend" style="width:auto"><option value="auto" ${S.backend==="auto"?"selected":""}>Moteur : auto</option><option value="claude" ${S.backend==="claude"?"selected":""}>Claude (vision)</option><option value="tesseract" ${S.backend==="tesseract"?"selected":""}>Tesseract (local)</option></select>
+${S.sid?`<button data-act="rerun" ${job?"disabled":""}>🔎 Relancer le contrôle</button>`:""}
+${D?`<button class="primary" data-act="xlsx">⬇ Excel des invalidées</button>`:""}<button data-act="zip" ${S.valid.length?"":"disabled"}>⬇ Base des pièces validées</button></div></div>
+${S.error?`<div class="banner error"><div>${esc(S.error)}</div><button data-act="clr-e">✕</button></div>`:""}${S.notice?`<div class="banner"><div>${esc(S.notice)}</div><button data-act="clr-n">✕</button></div>`:""}
+${S.busy?`<div class="banner"><div>${esc(S.busy)}${S.progress!=null?`<div class="bar"><i style="width:${S.progress}%"></i></div>`:""}</div></div>`:""}
+${job?`<div class="banner"><div>${esc(job.label||"Contrôle")} : ${job.done}/${job.total||"…"}<div class="bar"><i style="width:${job.total?100*job.done/job.total:3}%"></i></div></div></div>`:""}
+${D?`<div class="stats"><div><span>Demandes</span><strong>${sm.DEMANDES}</strong><small>${sm.IMAGES} images</small></div><div><span>✔ Validées</span><strong>${sm.VALIDE}</strong><small>stockées dans la base</small></div>
+<div><span>✖ Invalidées</span><strong>${sm.INVALIDE}</strong><small>dans l’Excel</small></div><div><span>⚠ À vérifier</span><strong>${sm.A_VERIFIER}</strong><small>numéro non confirmé</small></div><div><span>Scans sans demande</span><strong>${sm.ORPHELINS}</strong><small>non rattachés</small></div></div>
+<div class="panel"><h2>Motifs d’invalidation</h2>${Object.entries(sm.MOTIFS||{}).map(([k,v])=>`<span class="badge bad" style="margin:2px">${esc(k)} · ${v}</span>`).join(" ")||"Aucun."}</div>
+<div class="panel"><div class="filters"><input id="search" placeholder="Rechercher une demande, un nom, un village…" value="${esc(S.search)}"><select id="filter">${["INVALIDE","A_VERIFIER","VALIDE","Tous"].map(s=>`<option value="${s}" ${S.filter===s?"selected":""}>${{INVALIDE:"Invalidées",A_VERIFIER:"À vérifier",VALIDE:"Validées",Tous:"Toutes"}[s]}</option>`).join("")}</select></div>
+<div style="overflow:auto"><table><thead><tr><th>Demande</th><th>Sous-préfecture</th><th>Village</th><th>Demandeur</th><th>N° CSV</th><th>N° lu</th><th>Statut</th><th>Motif</th></tr></thead><tbody>
+${sl.map(r=>`<tr class="row" data-act="open" data-id="${esc(r.demande)}"><td><strong>${esc(r.demande)}</strong></td><td>${esc(r.sous_prefecture)}</td><td>${esc(r.village)}</td><td>${esc(r.nom+" "+r.prenoms)}</td><td>${esc(r.numero_csv)}</td><td>${esc(r.numero_lu)}</td><td>${chip(r.statut)}</td><td>${esc((r.motifs[0]||r.details[0]||"").slice(0,90))}${r.motifs.length>1?` <small>(+${r.motifs.length-1})</small>`:""}</td></tr>`).join("")||'<tr><td colspan="8" class="empty">Aucune demande.</td></tr>'}</tbody></table></div>
+<div class="pager">${list.length} demandes · <button data-act="prev" ${S.page===0?"disabled":""}>←</button> ${S.page+1} / ${pages} <button data-act="next" ${S.page>=pages-1?"disabled":""}>→</button></div></div>
+${sel?`<div class="panel"><h2>Demande ${esc(sel.demande)} ${chip(sel.statut)}</h2><p>${esc(sel.nom+" "+sel.prenoms)} · ${esc(sel.village)} · ${esc(sel.sous_prefecture)} · ${esc(sel.type_piece)} · CE : ${esc(sel.ce)}</p>
+${sel.motifs.length?`<ul>${sel.motifs.map(m=>`<li>${esc(m)}</li>`).join("")}</ul>`:""}${sel.details.length?`<p style="color:var(--mut)">${sel.details.map(esc).join("<br>")}</p>`:""}
+<div class="thumbs">${sel.scans.map(s=>`<figure style="margin:0"><a href="/api/cf/${S.sid}/scan/${encodeURIComponent(s.fichier)}" target="_blank" rel="noopener"><img src="/api/cf/${S.sid}/scan/${encodeURIComponent(s.fichier)}" style="height:230px;border-radius:8px;border:2px solid ${s.problemes.length?"var(--bad)":"var(--line)"}" alt=""></a>
+<figcaption style="font-size:12px;color:var(--mut)">${esc(s.fichier)} · ${esc(s.face)}${s.problemes.length?"<br><b style='color:var(--bad)'>"+s.problemes.map(esc).join(", ")+"</b>":""}</figcaption></figure>`).join("")}</div></div>`:""}`
+:`<div class="panel empty"><h2>Aucun export chargé</h2><p>Importez le ZIP de l’export (CSV + dossier Images). Le contrôle démarre automatiquement.</p></div>`}
+</div></main></div>`}
+document.addEventListener("click",async e=>{if(!e.target.closest(".menu"))document.querySelectorAll(".menu.open").forEach(m=>m.classList.remove("open"));const t=e.target.closest("[data-act]");if(!t)return;const a=t.dataset.act;
+ if(a==="menu"){t.parentElement.classList.toggle("open");return}if(a==="pick"){document.querySelectorAll(".menu.open").forEach(m=>m.classList.remove("open"));$(t.dataset.t==="dir"?"#fileDir":"#fileAny").click();return}
+ if(a==="side"){S.sidebar=!S.sidebar;render();return}if(a==="open"){S.sel=t.dataset.id;render();setTimeout(()=>document.querySelector(".thumbs")?.scrollIntoView({behavior:"smooth"}),50);return}
+ if(a==="prev"){S.page--;render();return}if(a==="next"){S.page++;render();return}if(a==="clr-e"){S.error="";render();return}if(a==="clr-n"){S.notice="";render();return}
+ if(a==="rerun"){await startRun();return}if(a==="xlsx"){await download(`/api/cf/${S.sid}/export/invalides.xlsx`,"Controle_piece_CF_invalidees.xlsx");return}
+ if(a==="zip"){await download("/api/cf/valid/export.zip","Base_pieces_CF_validees.zip");return}});
+document.addEventListener("input",e=>{if(e.target.id==="search"){S.search=e.target.value;S.page=0;const p=e.target.selectionStart;render();const n=$("#search");n.focus();n.setSelectionRange(p,p)}});
+document.addEventListener("change",e=>{if(e.target.id==="filter"){S.filter=e.target.value;S.page=0;render()}else if(e.target.id==="backend")S.backend=e.target.value});
+for(const id of["#fileAny","#fileDir"])$(id).addEventListener("change",e=>{importFiles(e.target.files).then(()=>{e.target.value=""})});
+(async()=>{render();try{S.valid=await json("/api/cf/valid/list");const ss=await json("/api/cf");const last=ss.find(s=>s.summary);if(last){S.sid=last.id;S.data=await json(`/api/cf/${last.id}/results`)}}catch(e){S.error=e.message}render()})();
+</script></body></html>

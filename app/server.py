@@ -18,6 +18,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .campaign_api import router as campaign_router
+from .cf_api import router as cf_router
 from .config import ROOT, Settings, get_settings
 from .csv_loader import build_rows, guess_mapping, load_csv
 from .export import to_xlsx
@@ -49,6 +50,7 @@ async def basic_auth(request: Request, call_next):
     return await call_next(request)
 
 
+app.include_router(cf_router)   # /api/cf/valid/... avant /api/cf/{sid}
 app.include_router(campaign_router)
 
 
@@ -146,6 +148,11 @@ def index() -> FileResponse:
 def jszip() -> FileResponse:
     return FileResponse(STATIC / "jszip.min.js", media_type="application/javascript",
                         headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/cf", include_in_schema=False)
+def cf_page() -> FileResponse:
+    return FileResponse(STATIC / "cf.html")
 
 
 @app.get("/identite", include_in_schema=False)

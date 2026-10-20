@@ -416,7 +416,7 @@ function render() {
     <div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
     <button class="nav ${S.view !== "history" ? "active" : ""}" data-act="nav" data-v="contracts">📋 Contrats</button>
     <button class="nav ${S.view === "history" ? "active" : ""}" data-act="nav" data-v="history">📁 Campagnes sauvegardées</button>
-    <div class="side-label">OUTILS</div><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
+    <div class="side-label">OUTILS</div><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/cf">🗂 Contrôle pièce CF</a><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
     <div class="side-note"><strong>Vos règles, appliquées</strong><p>Signature renseignée : présente.<br>Numéro de demande à renseigner pour chaque contrat.</p>
     ${S.health ? `<small>Moteur pièces : ${esc(S.health.backend_par_defaut)}</small>` : ""}</div></aside>
   <main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle des contrats › ${crumb}</div></header>
