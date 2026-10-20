@@ -155,7 +155,7 @@ def _read_json(data: bytes, out: dict) -> None:
 
 
 @router.post("/{cid}/import")
-async def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
+def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
     c = _get(cid)
     st = store()
     out = {"contracts": [], "inputs": {}, "aliases": {}, "scans": 0, "inventory": []}
@@ -175,16 +175,16 @@ async def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
                     raise HTTPException(400, f"ZIP illisible : {name}") from e
             elif ext == ".csv" and name.lower().endswith("inventaire_pieces.csv"):
                 import csv, io
-                out["inventory"].extend(csv.DictReader(io.StringIO(decode(await up.read())), delimiter=";"))
+                out["inventory"].extend(csv.DictReader(io.StringIO(decode(up.file.read())), delimiter=";"))
             elif ext == ".csv":
-                _read_csv(name, await up.read(), out)
+                _read_csv(name, up.file.read(), out)
             elif ext == ".json":
                 try:
-                    _read_json(await up.read(), out)
+                    _read_json(up.file.read(), out)
                 except Exception as e:  # noqa: BLE001
                     raise HTTPException(400, f"JSON illisible : {name}") from e
             elif ext in SUPPORTED_EXT:
-                st.add_scan(cid, name, await up.read())
+                st.add_scan(cid, name, up.file.read())
                 out["scans"] += 1
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -227,7 +227,7 @@ def get_extraction(cid: str, name: str) -> dict:
 
 
 @router.post("/{cid}/attach")
-async def attach_scan(cid: str, file: UploadFile = File(...), contract: str = Form(...), actor: int = Form(...),
+def attach_scan(cid: str, file: UploadFile = File(...), contract: str = Form(...), actor: int = Form(...),
                       replace: str = Form("")) -> dict:
     c = _get(cid)
     ext = Path(file.filename or "").suffix.lower()
@@ -236,7 +236,7 @@ async def attach_scan(cid: str, file: UploadFile = File(...), contract: str = Fo
     ct = next((x for x in c["contracts"] if x["key"] == contract), None)
     if not ct or not (0 <= actor < len(ct["actors"])):
         raise HTTPException(404, "contrat ou acteur introuvable")
-    name = store().add_scan(cid, f"{ct['number']}_{file.filename}", await file.read())
+    name = store().add_scan(cid, f"{ct['number']}_{file.filename}", file.file.read())
     a = ct["actors"][actor]
     pieces = [name if p == replace else p for p in a.get("pieces", [])] if replace else [*a.get("pieces", []), name]
     a["pieces"] = list(dict.fromkeys(pieces))
@@ -265,21 +265,28 @@ def _ident_once(cid: str, backend: str, job: dict) -> None:
         files = [st.scans_dir(cid) / n for n in st.scan_names(cid)]
         scans = collect_scans(files)
         job["total"] = len(scans)
-        extract_all(scans, extractor, s, lambda d, t: job.update(done=d, total=t))
         ocr = st.load_ocr(cid)
-        stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
-        for sc in scans:
-            if sc.extraction is not None:
-                ocr[sc.filename] = {"sha": sc.sha, "at": stamp, "extraction": sc.extraction.model_dump()}
-        for key in [k for k in ocr if k.partition("#p")[0] not in {p.name for p in files}]:
-            ocr.pop(key)
-        st.save_ocr(cid, ocr)
-        with st.lock:
-            c = st.load(cid)
-            if c is None:
-                return
-            c = apply_identity(c, ocr, st.scans_dir(cid), st.scan_names(cid), s, only_stale=False)
-            st.save(c)
+        names = {p.name for p in files}
+        base = 0
+        STEP = 40          # résultats appliqués par paquets : les données restent consultables pendant l'analyse
+        for i in range(0, len(scans), STEP):
+            part = scans[i:i + STEP]
+            extract_all(part, extractor, s, lambda d, t, b=base: job.update(done=b + d))
+            base += len(part)
+            stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+            for sc in part:
+                if sc.extraction is not None:
+                    ocr[sc.filename] = {"sha": sc.sha, "at": stamp, "extraction": sc.extraction.model_dump()}
+            for key in [k for k in ocr if k.partition("#p")[0] not in names]:
+                ocr.pop(key)
+            st.save_ocr(cid, ocr)
+            with st.lock:
+                c = st.load(cid)
+                if c is None:
+                    return
+                c = apply_identity(c, ocr, st.scans_dir(cid), st.scan_names(cid), s, only_stale=False)
+                st.save(c)
+            job["applied"] = job.get("applied", 0) + 1
         if not job.get("rerun"):
             job["status"] = "done"
     except Exception as e:  # noqa: BLE001

@@ -135,7 +135,7 @@ function rows(){const q=S.search.toLowerCase();return (S.data?.results||[]).filt
 function render(){const D=S.data,sm=D?.summary||{},job=S.job?.status==="running"?S.job:null;const list=rows();const pages=Math.max(1,Math.ceil(list.length/S.size));if(S.page>=pages)S.page=pages-1;const sl=list.slice(S.page*S.size,(S.page+1)*S.size);
 const sel=S.sel&&D?D.results.find(r=>r.demande===S.sel):null;
 $("#app").innerHTML=`<div class="shell ${S.sidebar?"":"collapsed"}"><aside class="sidebar"><div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
-<a class="nav" style="text-decoration:none;display:block;padding:10px" href="/">📋 Contrats</a><button class="nav active">🗂 Contrôle pièce CF</button><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
+<a class="nav" style="text-decoration:none;display:block;padding:10px" href="/" target="_blank" rel="noopener">📋 Contrats</a><button class="nav active">🗂 Contrôle pièce CF</button><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite" target="_blank" rel="noopener">🪪 Contrôle d’identité (lot)</a>
 <div class="side-note"><strong>Base des pièces validées</strong><p>${S.valid.length} demande(s) stockée(s).<br>Seules les pièces valides y entrent.</p></div></aside>
 <main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle pièce CF</div></header><div class="content">
 <div class="heading"><div><span class="eyebrow">CERTIFICAT FONCIER</span><h1>Contrôle pièce CF</h1><p>Détecte les scans flous, illisibles, mal cadrés ou en double, et vérifie le numéro de pièce avec la table applicant.</p></div>
@@ -169,4 +169,5 @@ document.addEventListener("input",e=>{if(e.target.id==="search"){S.search=e.targ
 document.addEventListener("change",e=>{if(e.target.id==="filter"){S.filter=e.target.value;S.page=0;render()}else if(e.target.id==="backend")S.backend=e.target.value});
 for(const id of["#fileAny","#fileDir"])$(id).addEventListener("change",e=>{importFiles(e.target.files).then(()=>{e.target.value=""})});
 (async()=>{render();try{S.valid=await json("/api/cf/valid/list");const ss=await json("/api/cf");const last=ss.find(s=>s.summary);if(last){S.sid=last.id;S.data=await json(`/api/cf/${last.id}/results`)}}catch(e){S.error=e.message}render()})();
+addEventListener("beforeunload",e=>{if(S.busy){e.preventDefault();e.returnValue=""}});
 </script></body></html>

@@ -69,17 +69,17 @@ def create(title: str = Form("Export CF")) -> dict:
 
 
 @router.post("/{sid}/files")
-async def upload(sid: str, files: list[UploadFile] = File(...)) -> dict:
+def upload(sid: str, files: list[UploadFile] = File(...)) -> dict:
     d = sdir(sid)
     n_img = n_csv = 0
     for up in files:
         name = safe_name(up.filename or "")
         ext = Path(name).suffix.lower()
         if ext == ".csv":
-            (d / name).write_bytes(await up.read())
+            (d / name).write_bytes(up.file.read())
             n_csv += 1
         elif ext in cf.IMG_EXT:
-            (d / "Images" / name).write_bytes(await up.read())
+            (d / "Images" / name).write_bytes(up.file.read())
             n_img += 1
     return {"csv": n_csv, "images": n_img, "total_images": len(cf.list_images(d / "Images"))}
 
