@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: presfor-controle
+    runtime: docker
+    plan: starter            # disque persistant requis => plan payant
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: presfor-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: APP_USER
+        value: admin
+      - key: APP_PASSWORD
+        generateValue: true  # affiché dans Render > Environment
+      - key: ANTHROPIC_API_KEY
+        sync: false          # à saisir dans le tableau de bord
+      - key: EXTRACTOR_BACKEND
+        value: auto
+      - key: WORKERS
+        value: "4"

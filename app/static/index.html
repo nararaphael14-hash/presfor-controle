@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRESFOR · Contrôle des pièces</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16202c;--mut:#5d6b7a;--line:#dfe3e8;--acc:#1f4e8c;--accink:#fff;
+--ok:#1e7a46;--okbg:#dff3e6;--tol:#4c7a1e;--tolbg:#ecf5dc;--warn:#8a5a00;--warnbg:#fff0c9;--bad:#a1291a;--badbg:#fbdcd5;--na:#555;--nabg:#e6e8eb}
+@media (prefers-color-scheme:dark){:root{--bg:#10151b;--card:#18202a;--ink:#e6ebf1;--mut:#9aa8b8;--line:#2a3542;--acc:#6aa5ec;--accink:#08121f;
+--ok:#6fd49b;--okbg:#17382a;--tol:#a8d46f;--tolbg:#26331a;--warn:#f3c76a;--warnbg:#3a2f12;--bad:#f59a8a;--badbg:#42201a;--na:#b6c0cb;--nabg:#262f3a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px} h1 small{color:var(--mut);font-weight:400;margin-left:8px}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--nabg);color:var(--na)}
+main{max-width:1280px;margin:0 auto;padding:20px 24px 60px}
+nav{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+nav button{background:none;border:0;padding:10px 16px;font:inherit;color:var(--mut);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+nav button[aria-selected=true]{color:var(--ink);border-color:var(--acc);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+.card h2{font-size:14px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);font-weight:650}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+label.f{display:block;font-size:12.5px;color:var(--mut)} label.f select,label.f input{display:block;width:100%;margin-top:3px;padding:7px 8px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px}
+.drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:22px;text-align:center;color:var(--mut);cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 6%,transparent)}
+.drop b{color:var(--ink)} .drop input{display:none}
+button.primary{background:var(--acc);color:var(--accink);border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+button.primary:disabled{opacity:.45;cursor:not-allowed}
+a.ghost{display:inline-block;text-decoration:none}
+button.ghost,a.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:inherit;color:var(--ink);cursor:pointer}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--mut);font-size:13px}
+.bar{height:8px;background:var(--nabg);border-radius:8px;overflow:hidden}.bar>i{display:block;height:100%;background:var(--acc);width:0;transition:width .3s}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:var(--card);padding:6px 12px;border-radius:99px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+.chip[aria-pressed=true]{outline:2px solid var(--acc)} .chip b{margin-left:6px}
+.tablewrap{overflow:auto;max-height:68vh;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th{position:sticky;top:0;background:var(--card);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top} tr.r{cursor:pointer} tr.r:hover td{background:color-mix(in srgb,var(--acc) 6%,transparent)}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.CONFORME,.OK{background:var(--okbg);color:var(--ok)} .CONFORME_TOLERE,.TOLERE{background:var(--tolbg);color:var(--tol)}
+.A_VERIFIER,.PROCHE,.PARTIEL,.INCERTAIN,.NON_LU{background:var(--warnbg);color:var(--warn)}
+.NON_CONFORME,.ECART,.MANQUANT_CSV{background:var(--badbg);color:var(--bad)} .PIECE_MANQUANTE,.PIECE_INUTILISABLE{background:var(--nabg);color:var(--na)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.diff{display:grid;grid-template-columns:130px 1fr 1fr 110px;gap:6px 14px;align-items:baseline;font-size:14px}
+.diff .h{font-size:11.5px;color:var(--mut);text-transform:uppercase}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);width:min(980px,96vw);max-height:92vh;padding:0}
+dialog::backdrop{background:rgba(0,0,0,.45)} .dh{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.db{padding:18px;overflow:auto;max-height:78vh}
+.imgs{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.imgs figure{margin:0;flex:1 1 300px}.imgs img{width:100%;border:1px solid var(--line);border-radius:8px;background:#000}
+.imgs figcaption{font-size:12px;color:var(--mut);margin-top:4px;word-break:break-all}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:12.5px;margin:0}
+.err{color:var(--bad);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>PRESFOR <small>Contrôle des pièces d'identité</small></h1>
+  <span class="pill" id="backend">…</span>
+</header>
+<main>
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-tab="lot">Contrôle par lot</button>
+  <button role="tab" aria-selected="false" data-tab="one">Extraire une pièce (JSON)</button>
+</nav>
+
+<section id="tab-lot">
+  <div class="card">
+    <h2>1 · Fichier CSV des agents</h2>
+    <label class="drop" id="dropCsv"><input type="file" id="csvFile" accept=".csv,.txt"><span><b>Déposez le CSV</b> ou cliquez (CSV simple ou export multi-tables DIGIFOR)</span></label>
+    <div id="csvInfo" class="muted" style="margin-top:10px"></div>
+    <div id="mapping" class="grid" style="margin-top:12px"></div>
+  </div>
+  <div class="card">
+    <h2>2 · Scans des pièces</h2>
+    <label class="drop" id="dropScans"><input type="file" id="scanFiles" multiple accept=".jpg,.jpeg,.png,.webp,.tif,.tiff,.pdf,.zip"><span><b>Déposez les scans</b> (images, PDF) <b>ou un ZIP</b></span></label>
+    <div id="scanInfo" class="muted" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <div class="row">
+      <label class="f" style="min-width:230px">Moteur d'extraction
+        <select id="backendSel"><option value="auto">Automatique</option><option value="claude">Vision Claude (API)</option><option value="tesseract">Tesseract local (hors ligne)</option></select>
+      </label>
+      <button class="primary" id="run" disabled>Lancer le contrôle</button>
+      <span class="muted" id="runMsg"></span>
+    </div>
+    <div class="bar" id="barWrap" style="margin-top:14px;display:none"><i id="bar"></i></div>
+  </div>
+
+  <div id="results" style="display:none">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <div class="chips" id="chips" style="margin:0"></div>
+        <div class="row"><input id="q" type="search" placeholder="Filtrer (nom, numéro, contrat…)" style="padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;min-width:240px">
+        <a class="ghost" id="xlsx" download>Excel</a>
+        <a class="ghost" id="json" download>JSON</a></div>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Ligne</th><th>Contrat</th><th>Rôle</th><th>Verdict</th><th>Nom saisi</th><th>Nom lu</th><th>Nom</th><th>N° saisi</th><th>N° lu</th><th>N°</th></tr></thead>
+        <tbody id="tbody"></tbody></table></div>
+    </div>
+    <details class="card" id="orphWrap"><summary><b id="orphTitle"></b> <span class="muted">— scans qu'aucune ligne du CSV ne revendique (témoins, pièces d'une autre personne, nom de fichier erroné…)</span></summary>
+      <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Fichier</th><th>Type</th><th>Nom lu</th><th>N° lu</th><th>Ligne la plus proche</th></tr></thead><tbody id="otbody"></tbody></table></div></details>
+  </div>
+</section>
+
+<section id="tab-one" hidden>
+  <div class="card">
+    <h2>Extraction d'une seule pièce → JSON</h2>
+    <label class="drop" id="dropOne"><input type="file" id="oneFile" accept=".jpg,.jpeg,.png,.webp,.tif,.tiff,.pdf"><span><b>Déposez une image ou un PDF</b></span></label>
+    <div class="row" style="margin-top:12px"><label class="f" style="min-width:230px">Moteur<select id="oneBackend"><option value="auto">Automatique</option><option value="claude">Vision Claude (API)</option><option value="tesseract">Tesseract local</option></select></label><span class="muted" id="oneMsg"></span></div>
+    <div class="imgs"><figure><img id="oneImg" alt="" hidden></figure><figure style="flex:1 1 400px"><pre id="onePre" hidden></pre></figure></div>
+  </div>
+</section>
+</main>
+
+<dialog id="dlg"><div class="dh"><b id="dlgTitle"></b><button class="ghost" id="dlgClose">Fermer</button></div><div class="db" id="dlgBody"></div></dialog>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const badge=s=>`<span class="badge ${esc(s)}">${esc(String(s||"—").replace(/_/g," "))}</span>`;
+const LABELS={CONFORME:"Conforme",CONFORME_TOLERE:"Conforme (tolérance)",A_VERIFIER:"À vérifier",NON_CONFORME:"Non conforme",PIECE_MANQUANTE:"Aucun scan rattaché",PIECE_INUTILISABLE:"Pièce inutilisable"};
+let csvFile=null,scanFiles=[],mapping={},tables=[],job=null,data=null,filter="ALL";
+
+fetch("/api/health").then(r=>r.json()).then(h=>{$("#backend").textContent=`Moteur par défaut : ${h.backend_par_defaut==="claude"?"Vision Claude ("+h.modele+")":"Tesseract local"}`}).catch(()=>{$("#backend").textContent="API injoignable"});
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  $("#tab-lot").hidden=b.dataset.tab!=="lot";$("#tab-one").hidden=b.dataset.tab!=="one";});
+
+function wireDrop(zone,input,cb){
+  ["dragenter","dragover"].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.add("over")}));
+  ["dragleave","drop"].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.remove("over")}));
+  zone.addEventListener("drop",ev=>cb([...ev.dataTransfer.files]));
+  input.addEventListener("change",()=>cb([...input.files]));
+}
+wireDrop($("#dropCsv"),$("#csvFile"),fs=>{if(fs[0]){csvFile=fs[0];previewCsv()}});
+wireDrop($("#dropScans"),$("#scanFiles"),fs=>{scanFiles=fs;$("#scanInfo").textContent=`${fs.length} fichier(s) sélectionné(s)`;updateRun()});
+wireDrop($("#dropOne"),$("#oneFile"),fs=>{if(fs[0])extractOne(fs[0])});
+
+const FIELD_LABELS={nom:"Nom",prenoms:"Prénoms",full:"Nom complet (ou nom+prénoms)",numero:"N° de pièce",code:"N° de contrat",type:"Type de pièce",role:"Rôle",fichier:"Fichier du scan (optionnel)"};
+async function previewCsv(){
+  const fd=new FormData();fd.append("csv_file",csvFile);if(tables.length)fd.append("tables",JSON.stringify(tables));
+  const r=await fetch("/api/csv/preview",{method:"POST",body:fd});
+  if(!r.ok){$("#csvInfo").innerHTML=`<span class="err">${esc((await r.json()).detail)}</span>`;return}
+  const p=await r.json();mapping=p.mapping;
+  let t=`${esc(csvFile.name)} — <b>${p.n_rows}</b> ligne(s) exploitable(s)`;
+  if(p.kind==="digifor"){t+=` · export DIGIFOR, tables lues : <b>${esc(p.selected_tables.join(", "))}</b>`;
+    t+=`<div class="row" style="margin-top:8px">${p.tables.map(x=>`<label><input type="checkbox" class="tbl" value="${esc(x)}" ${p.selected_tables.includes(x)?"checked":""}> ${esc(x)}</label>`).join("")}</div>`}
+  $("#csvInfo").innerHTML=t;
+  document.querySelectorAll(".tbl").forEach(c=>c.onchange=()=>{tables=[...document.querySelectorAll(".tbl:checked")].map(x=>x.value);previewCsv()});
+  $("#mapping").innerHTML=Object.keys(FIELD_LABELS).map(k=>`<label class="f">${FIELD_LABELS[k]}<select data-k="${k}"><option value="">— aucune —</option>${p.headers.map(h=>`<option ${mapping[k]===h?"selected":""} value="${esc(h)}">${esc(h)}</option>`).join("")}</select></label>`).join("");
+  document.querySelectorAll("#mapping select").forEach(s=>s.onchange=()=>{mapping[s.dataset.k]=s.value});
+  updateRun();
+}
+function updateRun(){$("#run").disabled=!(csvFile&&scanFiles.length)}
+
+$("#run").onclick=async()=>{
+  const fd=new FormData();fd.append("csv_file",csvFile);scanFiles.forEach(f=>fd.append("scans",f));
+  fd.append("mapping",JSON.stringify(mapping));if(tables.length)fd.append("tables",JSON.stringify(tables));fd.append("backend",$("#backendSel").value);
+  $("#run").disabled=true;$("#runMsg").textContent="Envoi des fichiers…";$("#results").style.display="none";
+  const r=await fetch("/api/jobs",{method:"POST",body:fd});
+  if(!r.ok){$("#runMsg").innerHTML=`<span class="err">${esc((await r.json()).detail)}</span>`;updateRun();return}
+  job=(await r.json()).job_id;$("#barWrap").style.display="block";poll();
+};
+async function poll(){
+  const s=await (await fetch(`/api/jobs/${job}?full=false`)).json();
+  const pct=s.total?Math.round(100*s.done/s.total):0;$("#bar").style.width=pct+"%";
+  $("#runMsg").textContent=s.status==="extracting"?`Extraction ${s.done}/${s.total}…`:s.status==="pending"?"Préparation…":"";
+  if(s.status==="error"){$("#runMsg").innerHTML=`<span class="err">${esc(s.error)}</span>`;updateRun();return}
+  if(s.status!=="done"){setTimeout(poll,1000);return}
+  data=await (await fetch(`/api/jobs/${job}`)).json();$("#runMsg").textContent="Terminé.";$("#bar").style.width="100%";updateRun();render();
+}
+
+function render(){
+  $("#results").style.display="block";
+  $("#xlsx").href=`/api/jobs/${job}/export.xlsx`;$("#json").href=`/api/jobs/${job}/export.json`;
+  const sm=data.summary,keys=["ALL",...Object.keys(LABELS)];
+  $("#chips").innerHTML=keys.map(k=>`<button class="chip" data-k="${k}" aria-pressed="${filter===k}">${k==="ALL"?"Tous":LABELS[k]}<b>${k==="ALL"?sm.TOTAL:(sm[k]||0)}</b></button>`).join("");
+  document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{filter=c.dataset.k;render()});
+  const q=$("#q").value.trim().toLowerCase();
+  const rows=data.results.filter(r=>(filter==="ALL"||r.verdict===filter)&&(!q||JSON.stringify([r.csv,r.extracted,r.code]).toLowerCase().includes(q)));
+  $("#tbody").innerHTML=rows.map(r=>{const n=r.checks.nom_complet||{},p=r.checks.numero_piece||{};
+    return `<tr class="r" data-i="${r.row_index}"><td>${r.row_index+2}</td><td class="mono">${esc(r.code)}</td><td>${esc(r.role)}</td><td>${badge(r.verdict)}</td>
+    <td>${esc(r.csv.nom_complet)}</td><td>${esc([r.extracted.nom,r.extracted.prenoms].filter(Boolean).join(" "))}</td><td>${n.status?badge(n.status):""}</td>
+    <td class="mono">${esc(r.csv.numero)}</td><td class="mono">${esc(r.extracted.numero_piece)}</td><td>${p.status?badge(p.status):""}</td></tr>`}).join("")||`<tr><td colspan="10" class="muted">Aucune ligne.</td></tr>`;
+  document.querySelectorAll("tr.r").forEach(t=>t.onclick=()=>openRow(+t.dataset.i));
+  $("#orphTitle").textContent=`${data.orphans.length} scan(s) non rattaché(s)`;
+  $("#otbody").innerHTML=data.orphans.map(o=>{const e=o.extraction||{},b=o.plus_proche;return `<tr><td class="mono">${esc(o.fichier)}</td><td>${esc(e.type_piece)} ${esc(e.face)}</td><td>${esc([e.nom,e.prenoms].filter(Boolean).join(" "))}</td><td class="mono">${esc(e.numero_piece)}</td><td>${b?esc(b.nom)+" ("+Math.round(b.score)+")":""}</td></tr>`}).join("");
+}
+$("#q").addEventListener("input",()=>data&&render());
+
+function diffRow(label,a,b,c){return `<div>${label}</div><div class="mono">${esc(a)||"—"}</div><div class="mono">${esc(b)||"—"}</div><div>${c?badge(c.status)+(c.score!=null?` <span class="muted">${Math.round(c.score)}</span>`:""):""}</div>`}
+function openRow(i){
+  const r=data.results.find(x=>x.row_index===i),k=r.checks,e=r.extracted,c=r.csv;
+  $("#dlgTitle").textContent=`Ligne ${i+2} · ${r.code||"—"} · ${r.role||""}`;
+  let h=`<div class="row" style="margin-bottom:12px">${badge(r.verdict)}<span class="muted">${esc(r.reasons.join(" — "))}</span></div>`;
+  if(k.nom_complet){h+=`<div class="diff"><div class="h"></div><div class="h">Saisi (CSV)</div><div class="h">Lu sur la pièce</div><div class="h">Statut</div>`
+    +diffRow("Nom complet",c.nom_complet,[e.nom,e.prenoms].filter(Boolean).join(" "),k.nom_complet)
+    +(k.nom?diffRow("· Nom",c.nom,e.nom,k.nom):"")+(k.prenoms?diffRow("· Prénoms",c.prenoms,e.prenoms,k.prenoms):"")
+    +diffRow("N° de pièce",c.numero,e.numero_piece,k.numero_piece)+`</div>`;
+    h+=`<p class="muted">${Object.values(k).filter(x=>x.note).map(x=>esc(x.field+" : "+x.note)).join(" · ")}</p>`}
+  if(r.flags.length)h+=`<p class="err">${esc(r.flags.join(" · "))}</p>`;
+  if(e.type_piece)h+=`<p class="muted">Type lu : ${esc(e.type_piece)}${c.type?" · type déclaré : "+esc(c.type):""} · confiance nom ${e.confiance_nom} / numéro ${e.confiance_numero}</p>`;
+  h+=`<div class="imgs">${r.scans.map(s=>`<figure><img loading="lazy" src="/api/jobs/${job}/scan/${s.id}" alt="scan"><figcaption>${esc(s.fichier)} — lien ${s.lien_score} (${esc(s.lien.join(", "))})${s.inter_contrat?" · autre contrat":""}<br>${esc(s.extraction?.face)} · ${esc(s.extraction?.remarques||"")}${s.extraction?.erreur?" · <span class=err>"+esc(s.extraction.erreur)+"</span>":""}</figcaption></figure>`).join("")}</div>`;
+  h+=`<details style="margin-top:14px"><summary>JSON extrait</summary><pre>${esc(JSON.stringify(r.scans.map(s=>s.extraction),null,2))}</pre></details>`;
+  $("#dlgBody").innerHTML=h;$("#dlg").showModal();
+}
+$("#dlgClose").onclick=()=>$("#dlg").close();
+
+async function extractOne(f){
+  $("#oneMsg").textContent="Extraction…";$("#onePre").hidden=true;
+  const img=$("#oneImg");if(f.type.startsWith("image/")){img.src=URL.createObjectURL(f);img.hidden=false}else img.hidden=true;
+  const fd=new FormData();fd.append("file",f);fd.append("backend",$("#oneBackend").value);
+  const r=await fetch("/api/extract",{method:"POST",body:fd});const j=await r.json();
+  $("#oneMsg").textContent=r.ok?"":"";const pre=$("#onePre");pre.hidden=false;pre.textContent=JSON.stringify(r.ok?j:j,null,2);
+}
+</script>
+</body>
+</html>
