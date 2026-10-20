@@ -89,16 +89,23 @@ def _extract_scan(scan: ScanItem, extractor, cache_dir: Path) -> Extraction:
 
 def extract_all(scans: list[ScanItem], extractor, settings: Settings,
                 progress: Callable[[int, int], None] | None = None) -> None:
+    """Lit chaque image UNE seule fois : les scans identiques (même empreinte) partagent le même résultat.
+    Dans les exports, la même photo est très souvent réutilisée (recto/verso doublés, même titulaire sur N demandes)."""
+    from concurrent.futures import as_completed
+
     total, done = len(scans), 0
+    groups: dict[tuple, list[ScanItem]] = {}
+    for sc in scans:
+        groups.setdefault((sc.sha, sc.page_index), []).append(sc)
     if progress:
         progress(0, total)
     with ThreadPoolExecutor(max_workers=max(1, settings.workers)) as pool:
-        futures = {pool.submit(extract_scan, s, extractor, settings.cache_dir): s for s in scans}
-        from concurrent.futures import as_completed
-
+        futures = {pool.submit(extract_scan, g[0], extractor, settings.cache_dir): g for g in groups.values()}
         for fut in as_completed(futures):
-            futures[fut].extraction = fut.result()
-            done += 1
+            ex = fut.result()
+            for sc in futures[fut]:
+                sc.extraction = ex
+                done += 1
             if progress:
                 progress(done, total)
 

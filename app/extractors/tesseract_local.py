@@ -122,6 +122,7 @@ NUM_AFTER_LABEL = re.compile(
 # Numéros imprimés des CNI ivoiriennes : « CI » + 9 chiffres, ou « C » + 10 chiffres. Les autres suites de
 # chiffres (NNI, numéro de série, téléphone…) NE sont PAS prises comme numéro de pièce par le moteur local.
 ID_TOKEN = re.compile(r"\bC[IL1]?[0-9OQ]{9,10}\b")
+RECTO_WORDS = re.compile(r"REPUBLIQUE|CARTE NATIONALE|PRENOM|SURNAME|NOM\b|DATE DE NAISSANCE|IDENTITE")
 LOCAL_MAX_CONF = 0.55   # < MIN_CONFIDENCE (0.6) : une lecture locale ne confirme jamais un écart
 
 
@@ -270,6 +271,10 @@ class TesseractExtractor:
                 if got["mrz"] and (not p["mrz"] or (got["mrz"]["valid"] and not p["mrz"]["valid"])):
                     p["mrz"] = got["mrz"]
                 if p["nom"] and p["prenoms"] and p["numero"]:
+                    break
+                # verso / page sans libellé d'identité après 2 passes : les suivantes (lentes) ne changeront rien
+                if len(texts) == 2 and not (p["nom"] or p["prenoms"] or p["numero"]) \
+                        and not RECTO_WORDS.search(norm_text(" ".join(texts))):
                     break
         except Exception as e:  # tesseract absent ou image corrompue
             return Extraction(lisible=False, type_piece="ILLISIBLE", backend=self.cache_id,
