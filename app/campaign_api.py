@@ -244,6 +244,15 @@ async def attach_scan(cid: str, file: UploadFile = File(...), contract: str = Fo
 # ------------------------------------------------------------------ contrôle des pièces (moteur d'identité v2)
 def _ident_worker(cid: str, backend: str) -> None:
     job = IDENT_JOBS[cid]
+    while True:
+        job["rerun"] = False
+        _ident_once(cid, backend, job)
+        if job["status"] != "running" or not job.get("rerun"):
+            return
+        job["done"] = 0
+
+
+def _ident_once(cid: str, backend: str, job: dict) -> None:
     s = get_settings()
     try:
         st = store()
@@ -266,7 +275,8 @@ def _ident_worker(cid: str, backend: str) -> None:
                 return
             c = apply_identity(c, ocr, st.scans_dir(cid), st.scan_names(cid), s, only_stale=False)
             st.save(c)
-        job["status"] = "done"
+        if not job.get("rerun"):
+            job["status"] = "done"
     except Exception as e:  # noqa: BLE001
         log.exception("contrôle des pièces en erreur")
         job["status"], job["error"] = "error", f"{type(e).__name__}: {e}"
@@ -276,6 +286,7 @@ def _ident_worker(cid: str, backend: str) -> None:
 def run_identity(cid: str, backend: str = Form("auto")) -> dict:
     _get(cid)
     if (j := IDENT_JOBS.get(cid)) and j["status"] == "running":
+        j["rerun"] = True          # de nouveaux fichiers sont arrivés : on relance dès la fin du passage en cours
         return j
     s = get_settings()
     backend = (backend or "auto").lower()

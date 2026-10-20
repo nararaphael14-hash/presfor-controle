@@ -137,6 +137,7 @@ const run = async (label, fn) => {
   S.error = ""; S.busy = label; S.progress = null; render();
   try { await fn(); } catch (e) { S.error = e.message || String(e); }
   S.busy = ""; S.progress = null; render();
+  if (S.autoIdent) { S.autoIdent = false; await runIdentity(); }   // contrôle des pièces automatique à chaque synchronisation
 };
 async function refreshHistory() { S.history = await json("/api/campaigns"); }
 
@@ -218,7 +219,8 @@ async function importFiles(list) {
     }
     if (last) { S.campaign = last; S.view = "contracts"; S.sel = null; S.page = 0; S.dirty = false; }
     await refreshHistory();
-    S.notice = `${contracts} contrats importés · ${scans} pièces ajoutées · ${S.campaign.scanNames.length} pièces disponibles`;
+    S.autoIdent = S.campaign.scanNames.length > 0;
+    S.notice = `${contracts} contrats importés · ${scans} pièces ajoutées · ${S.campaign.scanNames.length} pièces disponibles — contrôle automatique des pièces lancé`;
   });
 }
 
@@ -483,7 +485,7 @@ $("#fileOne").addEventListener("change", async e => {
     const fd = new FormData(); fd.append("file", f); fd.append("contract", c.key); fd.append("actor", S.attach);
     const r = await json(`/api/campaigns/${S.campaign.id}/attach`, {method:"POST", body:fd});
     const keep = {sel:S.sel, view:S.view}; S.campaign = r.campaign; Object.assign(S, keep);
-    S.piece = r.name; S.notice = "Scan rattaché et sauvegardé.";
+    S.piece = r.name; S.notice = "Scan rattaché et sauvegardé."; S.autoIdent = true;
   });
 });
 window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
