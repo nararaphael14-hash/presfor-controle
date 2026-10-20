@@ -26,7 +26,7 @@ from .pipeline import collect_scans, extract_all
 
 IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 # Seuils (réglables) — calibrés sur l'export CF de la région Nawa
-SHARP_MIN = 2.3        # netteté normalisée (cf_quality.sharpness)
+SHARP_MIN = 5.0        # netteté normalisée (cf_quality.sharpness)
 MIN_SIDE = 500         # px, plus petit côté
 DARK, BRIGHT, FLAT = 55.0, 235.0, 22.0
 ORB_DUP = 60           # correspondances ORB cohérentes => même face photographiée deux fois

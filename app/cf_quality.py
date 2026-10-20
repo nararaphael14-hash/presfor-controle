@@ -43,14 +43,26 @@ def hamming(a: int, b: int) -> int:
     return bin(a ^ b).count("1")
 
 
-def sharpness(g) -> float:
-    """Gradient moyen des 15 % de pixels les plus contrastés / écart-type global : un texte net a des arêtes fortes,
-    un scan flou n'en a pas, quelle que soit la luminosité de la photo."""
+def sharpness(g, n: int = 8, k: int = 4) -> float:
+    """Netteté de la zone du document : la photo contient surtout du décor (table, sol, cahier) qui dilue toute mesure
+    globale. On découpe en n×n tuiles, on garde les k plus riches en arêtes (le texte de la pièce) et on y mesure
+    gradient fort / contraste local. Un texte net donne ≥ 5 ; un texte flou reste sous 4,5 quelle que soit la luminosité."""
     gx = cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3)
-    mag = np.sqrt(gx * gx + gy * gy).ravel()
-    top = np.partition(mag, int(mag.size * 0.85))[int(mag.size * 0.85):]
-    return float(top.mean() / (g.std() + 10.0))
+    mag = np.sqrt(gx * gx + gy * gy)
+    h, w = g.shape
+    th, tw = max(h // n, 1), max(w // n, 1)
+    tiles = []
+    for i in range(n):
+        for j in range(n):
+            m = mag[i * th:(i + 1) * th, j * tw:(j + 1) * tw].ravel()
+            t = g[i * th:(i + 1) * th, j * tw:(j + 1) * tw]
+            if m.size < 16:
+                continue
+            top = np.partition(m, int(m.size * 0.85))[int(m.size * 0.85):].mean()
+            tiles.append((float(m.mean()), float(top / (t.std() + 10.0))))
+    tiles.sort(reverse=True)
+    return float(np.mean([t[1] for t in tiles[:k]])) if tiles else 0.0
 
 
 def measure(path: Path) -> tuple[Metrics, np.ndarray | None]:
