@@ -155,7 +155,7 @@ def analyse_request(app: dict, names: list[str], sc: dict) -> dict:
                 why = "recto scanné deux fois"
             if why:
                 seen_pairs.add((a, b))
-                side = faces[a] if faces[a] == faces[b] else "recto/verso"
+                side = faces[a].lower() if faces[a] == faces[b] else "la même face est présente en recto et en verso"
                 motifs.append(f"pièce scannée en double — {side} ({why}) : {a} et {b}")
     # --- faces manquantes (CNI : recto + verso attendus)
     cni = "identit" in app["type_piece"].lower() and "attestation" not in app["type_piece"].lower()
