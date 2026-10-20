@@ -60,7 +60,8 @@ def parse_export(text: str) -> dict:
             "type_piece": (a.get("identityDocumentType") or "").strip(),
             "numero_csv": (a.get("identityDocumentNumber") or "").strip(),
             "ce": (requests.get(req, {}).get("nomPrenomCE") or "").strip(), "refs": refs})
-    return {"applicants": out, "n_villages": len(villages), "n_sprefs": len(sprefs)}
+    return {"applicants": out, "n_villages": len(villages), "n_sprefs": len(sprefs), "villages": villages,
+            "sprefs": sprefs, "requests": set(requests)}
 
 
 def list_images(d: Path) -> list[str]:
@@ -73,6 +74,12 @@ def scans_for(app: dict, files: list[str]) -> list[str]:
     found += [f for f in files if (f.startswith(app["demande"] + "_") or app["applicant"] and app["applicant"] + "_" in f)
               and f not in found]
     return sorted(dict.fromkeys(found), key=lambda n: (re.sub(r"_\d+(\.\w+)$", "", n), n))
+
+
+def request_of_file(name: str) -> str:
+    """380-014-041001_0.jpg -> 380-014-041001 (le suffixe _0 / _1 désigne seulement le recto / verso)."""
+    m = re.search(r"(\d{3}-\d{3}-\d{6})", name)
+    return m.group(1) if m else re.sub(r"_\d+(\.\w+)?$", "", Path(name).stem)
 
 
 def side_from_name(name: str) -> str:
@@ -223,10 +230,20 @@ def run_session(sdir: Path, settings: Settings, extractor, progress: Callable[[i
         results.append(analyse_request(app, names, sc))
     for r in results:
         r["_n"] = len(r["scans"])
-    orphans = [{"fichier": n, "face": side_from_name(n), "net": sc[n]["metrics"].get("sharp"),
-                "numero_lu": sc[n]["extraction"].numero_piece if sc[n]["extraction"] else None,
-                "motif": "scan sans demande dans la table applicant (nom de fichier non rattachable)"}
-               for n in files if n not in used and n in sc]
+    orphans = []
+    for n in files:
+        if n in used or n not in sc:
+            continue
+        dem = request_of_file(n)               # « _0 » / « _1 » = recto / verso, pas une partie du numéro
+        parts = dem.split("-")
+        sp, vl = parts[0], "-".join(parts[:2])
+        known = dem in exp["requests"]
+        orphans.append({"fichier": n, "demande": dem, "face": side_from_name(n),
+                        "sous_prefecture": exp["sprefs"].get(sp, "Non trouvée"), "village": exp["villages"].get(vl, "Non trouvé"),
+                        "net": sc[n]["metrics"].get("sharp"),
+                        "numero_lu": sc[n]["extraction"].numero_piece if sc[n]["extraction"] else None,
+                        "motif": (f"demande {dem} présente dans la table request mais sans ligne dans la table applicant" if known else
+                                  f"demande {dem} absente des tables applicant et request de cet export")})
     summary = {k: sum(1 for r in results if r["statut"] == k) for k in ("VALIDE", "INVALIDE", "A_VERIFIER")}
     summary.update(DEMANDES=len(results), IMAGES=len(files), ORPHELINS=len(orphans),
                    MOTIFS=_count_motifs(results))
@@ -327,8 +344,15 @@ def invalid_workbook(data: dict) -> bytes:
             r["numero_csv"], r["numero_lu"], "\n".join(r["details"]), "\n".join(s["fichier"] for s in r["scans"])]
            for r in R if r["statut"] == "A_VERIFIER"]
     _sheet(wb, "À vérifier (n° non confirmé)", [*heads[:7], "Détail", "Fichiers"], ver)
-    _sheet(wb, "Scans sans demande", ["Fichier", "Face", "N° lu", "Motif(s)"],
-           [[o["fichier"], o["face"], o["numero_lu"], o["motif"]] for o in data["orphans"]])
+    grp: dict[str, dict] = {}
+    for o in data["orphans"]:
+        g = grp.setdefault(o["demande"], {"o": o, "RECTO": [], "VERSO": [], "INCONNUE": [], "lus": []})
+        g[o["face"]].append(o["fichier"])
+        if o["numero_lu"] and o["numero_lu"] not in g["lus"]:
+            g["lus"].append(o["numero_lu"])
+    _sheet(wb, "Scans sans demande", ["Numéro de demande", "Sous-prefecture", "Village", "Recto", "Verso", "N° lu", "Motif(s)"],
+           [[d, g["o"]["sous_prefecture"], g["o"]["village"], "\n".join(g["RECTO"] + g["INCONNUE"]), "\n".join(g["VERSO"]),
+             ", ".join(g["lus"]), g["o"]["motif"]] for d, g in sorted(grp.items())])
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
