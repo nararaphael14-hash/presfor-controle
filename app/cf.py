@@ -31,6 +31,18 @@ MIN_SIDE = 500         # px, plus petit côté
 DARK, BRIGHT, FLAT = 55.0, 235.0, 22.0
 ORB_DUP = 60           # correspondances ORB cohérentes => même face photographiée deux fois
 DHASH_DUP = 5
+DHASH_ORB = 12         # l'appariement ORB seul est trompé par le décor (même table photographiée) : il faut aussi une mise en page proche
+
+
+def _has_id(ex) -> bool:
+    return bool(ex and (ex.nom or ex.prenoms or ex.numero_piece))
+
+
+def _faces_differ(ea, eb) -> bool:
+    """Recto (champs d'identité lus) face à verso (MRZ / aucun champ) : deux faces différentes, jamais un doublon."""
+    if ea is None or eb is None:
+        return False
+    return _has_id(ea) != _has_id(eb) or bool(ea.mrz) != bool(eb.mrz)
 PREFIX_OK = {"", "C", "I", "1", "L", "CL", "C1", "CI", "LI", "IC"}
 
 
@@ -153,9 +165,11 @@ def analyse_request(app: dict, names: list[str], sc: dict) -> dict:
             if sa["sha"] == sb["sha"]:
                 why = "même fichier"
             elif sa["metrics"]["ok"] and sb["metrics"]["ok"]:
-                if hamming(sa["metrics"]["dhash"], sb["metrics"]["dhash"]) <= DHASH_DUP:
+                dh = hamming(sa["metrics"]["dhash"], sb["metrics"]["dhash"])
+                if dh <= DHASH_DUP:
                     why = "images quasi identiques"
-                elif sa["gray"] is not None and sb["gray"] is not None and similar_views(sa["gray"], sb["gray"]) >= ORB_DUP:
+                elif (sa["gray"] is not None and sb["gray"] is not None and not _faces_differ(sa["extraction"], sb["extraction"])
+                      and dh <= DHASH_ORB and similar_views(sa["gray"], sb["gray"]) >= ORB_DUP):
                     why = "même face photographiée deux fois"
             ea, eb = sa["extraction"], sb["extraction"]
             if not why and ea and eb and ea.face == eb.face == "RECTO" and (ea.nom or ea.numero_piece) and (eb.nom or eb.numero_piece):
