@@ -16,6 +16,7 @@ from openpyxl import Workbook
 from starlette.background import BackgroundTask
 
 from . import cf
+from . import persist
 from .campaigns import data_dir, now, safe_name, valid_id
 from .config import get_settings
 from .csv_loader import decode
@@ -38,6 +39,7 @@ def sdir(sid: str) -> Path:
     d = root() / sid
     if not d.is_dir():
         raise HTTPException(404, "session introuvable")
+    persist.ensure(d / "Images")
     return d
 
 
@@ -155,6 +157,7 @@ def delete(sid: str) -> dict:
     d = sdir(sid)
     JOBS.pop(sid, None)
     shutil.rmtree(d, ignore_errors=True)
+    persist.delete_prefix(d)
     return {"ok": True}
 
 
@@ -166,6 +169,7 @@ def valid_list() -> list[dict]:
 
 @router.get("/valid/file/{path:path}")
 def valid_file(path: str) -> FileResponse:
+    persist.ensure(cf.valid_root() / "pieces")
     p = (cf.valid_root() / path).resolve()
     if cf.valid_root().resolve() not in p.parents or not p.is_file():
         raise HTTPException(404, "fichier introuvable")
@@ -174,6 +178,7 @@ def valid_file(path: str) -> FileResponse:
 
 @router.get("/valid/export.zip")
 def valid_zip() -> FileResponse:
+    persist.ensure(cf.valid_root() / "pieces")
     rows = cf.valid_rows()
     tmp = cf.valid_root() / f"_export_{uuid.uuid4().hex}.zip"
     wb = Workbook()

@@ -54,6 +54,29 @@ app.include_router(cf_router)   # /api/cf/valid/... avant /api/cf/{sid}
 app.include_router(campaign_router)
 
 
+@app.on_event("startup")
+def _startup_persist() -> None:
+    from . import persist
+    from .campaigns import data_dir
+
+    if persist.start(data_dir()):
+        log.info("persistance externe active (%s)", persist.status()["bucket"])
+
+
+@app.on_event("shutdown")
+def _shutdown_persist() -> None:
+    from . import persist
+
+    persist.flush()          # dernier envoi avant l'arrêt du conteneur (redéploiement, mise en veille)
+
+
+@app.get("/api/storage", include_in_schema=False)
+def storage_status() -> dict:
+    from . import persist
+
+    return persist.status()
+
+
 @app.get("/healthz", include_in_schema=False)
 def healthz() -> dict:
     return {"ok": True}

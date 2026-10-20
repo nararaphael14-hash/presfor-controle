@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import ROOT
+from . import persist
 from .images import SUPPORTED_EXT
 
 _ID = re.compile(r"^[a-zA-Z0-9-]{1,80}$")
@@ -48,6 +49,7 @@ class Store:
 
     def scans_dir(self, cid: str) -> Path:
         d = self.dir(cid) / "scans"
+        persist.ensure(d)               # images restaurées depuis le stockage externe au premier accès
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -88,6 +90,7 @@ class Store:
             if not d.exists():
                 return False
             shutil.rmtree(d, ignore_errors=True)
+            persist.delete_prefix(d)
             return True
 
     def list(self) -> list[dict]:

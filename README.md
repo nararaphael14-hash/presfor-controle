@@ -192,3 +192,18 @@ Constitue une **base de pièces scannées validées** à partir d'un export CF (
 - **À vérifier** : tout est correct mais le numéro n'a pas pu être confirmé (lecture absente/incertaine) → ni stockée, ni invalidée.
 - Sorties : **Excel des invalidées** (feuille « Invalidées » ; feuilles annexes « À vérifier » et « Scans sans demande ») et **ZIP de la base validée**.
 - Le contrôle démarre automatiquement après l'import. Le moteur Claude lit nettement mieux les numéros : avec Tesseract seul, beaucoup de demandes restent « À vérifier ».
+
+## Persistance gratuite (stockage objet S3) — sans disque payant
+Sur l'offre gratuite de Render le disque est vidé à chaque redémarrage (inactivité 15 min, déploiement). Renseignez ces variables
+pour que campagnes, résultats, caches d'OCR, sessions CF et base des pièces validées soient recopiés vers un bucket
+compatible S3 (Supabase Storage, Cloudflare R2, Backblaze B2) et restaurés au démarrage :
+
+| Variable | Exemple |
+|---|---|
+| `S3_ENDPOINT` | `https://<projet>.supabase.co/storage/v1/s3` (Supabase) · `https://<compte>.r2.cloudflarestorage.com` (R2) |
+| `S3_BUCKET` | `presfor` |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | clés S3 du fournisseur |
+| `S3_REGION` | région du projet (Supabase) ou `auto` (R2) |
+
+Les fichiers modifiés partent toutes les 15 s et à l'arrêt ; les images d'un dossier sont rechargées au premier accès.
+État : `GET /api/storage`. Sans ces variables, rien ne change (disque local).
