@@ -21,7 +21,7 @@ HEAD_FILL = PatternFill("solid", fgColor="163F38")
 
 def _cell(ws, row: int, col: int, value):
     c = ws.cell(row=row, column=col, value=value)
-    if isinstance(value, str) and value[:1] in "=+-@":
+    if isinstance(value, str) and value[:1] and value[0] in "=+-@":
         c.data_type = "s"          # jamais interprété comme formule
     return c
 

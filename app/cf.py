@@ -319,7 +319,7 @@ def _sheet(wb: Workbook, title: str, heads: list[str], rows: list[list], first: 
     ws.title = title
     ws.append(heads)
     for r in rows:
-        ws.append([("'" + v if isinstance(v, str) and v[:1] in "=+-@" else v) for v in r])
+        ws.append([("'" + v if isinstance(v, str) and v[:1] and v[0] in "=+-@" else v) for v in r])
     for c in ws[1]:
         c.font = Font(bold=True, color="FFFFFFFF")
         c.fill = PatternFill("solid", fgColor="163F38")
