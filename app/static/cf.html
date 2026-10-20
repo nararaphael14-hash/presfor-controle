@@ -109,7 +109,8 @@ pre{background:#f1f5f4;padding:8px;border-radius:8px;overflow:auto;max-height:22
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const S={sid:null,data:null,sessions:[],valid:[],filter:"INVALIDE",search:"",sel:null,busy:"",progress:null,error:"",notice:"",backend:"auto",job:null,sidebar:true,page:0,size:20,health:null};
-let pollT=null;
+let pollT=null,pollFails=0;
+const transient=e=>/HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test(e.message||"");
 async function api(u,o={}){const r=await fetch(u,o);if(!r.ok){let m="HTTP "+r.status;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(typeof m==="string"?m:JSON.stringify(m))}return r}
 const json=async(u,o)=>(await api(u,o)).json();
 const baseName=n=>String(n).replace(/\\/g,"/").split("/").pop();
@@ -125,9 +126,10 @@ async function importFiles(list){const files=[...list];if(!files.length)return;a
   const r=await post(`/api/cf/${S.sid}/files`,fd,fr=>{S.progress=100*(i+fr)/batches.length;S.busy=`Envoi des fichiers : lot ${i+1}/${batches.length} (${Math.round(fr*100)} %)`;render()});imgs=r.total_images}
  S.notice=`${imgs} images envoyées — contrôle automatique lancé`;S.auto=true})}
 async function startRun(){const fd=new FormData();fd.append("backend",S.backend);try{S.job=await json(`/api/cf/${S.sid}/run`,{method:"POST",body:fd})}catch(e){S.error=e.message;render();return}poll()}
-function poll(){clearTimeout(pollT);pollT=setTimeout(async()=>{try{S.job=await json(`/api/cf/${S.sid}/status`);if(S.job.status==="running"){render();poll();return}
+function poll(){clearTimeout(pollT);pollT=setTimeout(async()=>{try{S.job=await json(`/api/cf/${S.sid}/status`);if(pollFails){pollFails=0;S.notice=""}if(S.job.status==="running"){render();poll();return}
+ if(S.job.status==="idle"){S.error="Analyse interrompue : le serveur a redémarré (hébergement gratuit, données non conservées). Réimportez l’export puis relancez.";S.job=null;render();return}
  if(S.job.status==="done"){S.data=await json(`/api/cf/${S.sid}/results`);S.valid=await json("/api/cf/valid/list");S.notice="Contrôle terminé — pièces validées enregistrées dans la base.";S.filter="INVALIDE";S.page=0}
- else if(S.job.status==="error")S.error="Contrôle CF : "+S.job.error;S.job=null;render()}catch(e){S.error=e.message;S.job=null;render()}},1200)}
+ else if(S.job.status==="error")S.error="Contrôle CF : "+S.job.error;S.job=null;render()}catch(e){if(transient(e)&&++pollFails<=60){S.notice="Reconnexion au serveur… l’analyse continue côté serveur.";render();poll();return}S.error=transient(e)?"Le serveur ne répond pas (redémarrage en cours). Patientez une minute puis relancez.":e.message;S.job=null;render()}},pollFails?3000:1200)}
 async function run(label,fn){S.error="";S.busy=label;S.progress=null;render();try{await fn()}catch(e){S.error=e.message}S.busy="";S.progress=null;render();if(S.auto){S.auto=false;await startRun()}}
 async function download(url,name){await run("Préparation du fichier…",async()=>{const r=await api(url);const bl=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)})}
 const chip=s=>s==="VALIDE"?'<span class="badge ok">Validée</span>':s==="INVALIDE"?'<span class="badge bad">Invalidée</span>':'<span class="badge warning">À vérifier</span>';

@@ -36,7 +36,7 @@ class Settings:
     api_key: str = os.environ.get("ANTHROPIC_API_KEY", "")
     model: str = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
     tesseract_lang: str = os.environ.get("TESSERACT_LANG", "fra+eng")
-    workers: int = int(_f("WORKERS", 4))
+    workers: int = int(_f("WORKERS", 2))
     cache_dir: Path = Path(os.environ.get("CACHE_DIR", ROOT / "data" / "cache"))
     jobs_dir: Path = Path(os.environ.get("JOBS_DIR", ROOT / "data" / "jobs"))
     # --- Seuils de comparaison (0-100) ---

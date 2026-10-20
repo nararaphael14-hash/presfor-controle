@@ -121,7 +121,9 @@ const MANDATORY = ["Propriétaire", "Bénéficiaire"];
 const S = {view:"contracts", campaign:null, history:[], sel:null, piece:"", page:0, pageSize:20, search:"", status:"Tous",
            busy:"", progress:null, notice:"", error:"", dirty:false, sidebar:true, backend:"auto", health:null, job:null, rot:0, zoom:false,
            attach:null, applied:0};
-let evalTimer = null, pollTimer = null;
+let evalTimer = null, pollTimer = null, pollFails = 0;
+const transient = e => /HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test(e.message || "");
+const friendly = e => /HTTP 404/.test(e.message || "") || /introuvable/i.test(e.message || "") ? "Campagne introuvable sur le serveur : l’hébergement gratuit s’est redémarré (les données ne sont pas conservées sans disque). Réimportez vos fichiers." : transient(e) ? "Le serveur ne répond pas (redémarrage en cours). Patientez une minute puis relancez « Contrôler les pièces »." : e.message;
 addEventListener("beforeunload", e => { if (S.busy) { e.preventDefault(); e.returnValue = ""; } });   // un envoi en cours ne doit pas être coupé par erreur
 
 // ---------------------------------------------------------------- API
@@ -276,6 +278,8 @@ function pollJob() {
     const c = S.campaign; if (!c) return;
     try {
       S.job = await json(`/api/campaigns/${c.id}/identity/status`);
+      if (pollFails) { pollFails = 0; S.notice = ""; }
+      if (S.job.status === "idle") { S.error = "Analyse interrompue : le serveur a redémarré (hébergement gratuit, données non conservées). Réimportez vos fichiers."; S.job = null; render(); return; }
       if (S.job.status === "running") {
         if ((S.job.applied || 0) !== S.applied && !S.dirty && !S.busy) {   // résultats partiels : on rafraîchit sans bloquer l'écran
           S.applied = S.job.applied || 0;
@@ -291,8 +295,11 @@ function pollJob() {
         S.notice = "Contrôle des pièces terminé.";
       } else if (S.job.status === "error") S.error = "Contrôle des pièces : " + S.job.error;
       S.job = null; render();
-    } catch (e) { S.error = e.message; S.job = null; render(); }
-  }, 1200);
+    } catch (e) {
+      if (transient(e) && ++pollFails <= 60) { S.notice = "Reconnexion au serveur… l’analyse continue côté serveur."; render(); pollJob(); return; }   // déploiement / réveil de l'hébergement
+      S.error = friendly(e); S.job = null; render();
+    }
+  }, pollFails ? 3000 : 1200);
 }
 
 // ---------------------------------------------------------------- rendu

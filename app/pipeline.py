@@ -1,6 +1,9 @@
 """Pipeline : extraction (avec cache) -> rattachement scans/lignes -> comparaison -> verdict."""
 from __future__ import annotations
 
+import os
+import threading
+
 import hashlib
 import json
 import logging
@@ -57,7 +60,16 @@ def _cache_file(cache_dir: Path, scan: ScanItem, cache_id: str) -> Path:
     return cache_dir / f"{scan.sha[:32]}_p{scan.page_index}_{safe}.json"
 
 
+# Plafond global d'extractions simultanées, tous contrôles confondus (contrats + CF) : l'hébergement gratuit n'a que 512 Mo
+_SLOTS = threading.BoundedSemaphore(int(os.getenv("GLOBAL_WORKERS", "3")))
+
+
 def extract_scan(scan: ScanItem, extractor, cache_dir: Path) -> Extraction:
+    with _SLOTS:
+        return _extract_scan(scan, extractor, cache_dir)
+
+
+def _extract_scan(scan: ScanItem, extractor, cache_dir: Path) -> Extraction:
     cf = _cache_file(cache_dir, scan, extractor.cache_id)
     if cf.is_file():
         try:
