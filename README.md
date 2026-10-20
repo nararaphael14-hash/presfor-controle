@@ -1,3 +1,35 @@
+# PRESFOR — Contrôle des contrats (v3) + contrôle des pièces d'identité (v2)
+
+La plateforme reprend **tout le fonctionnement de la première plateforme** (campagnes, règles de contrôle, fiches, exports
+RAS / REAMRQUE / Global, dossier complet avec pièces) et remplace sa lecture OCR navigateur par le moteur d'identité v2
+(extraction JSON forcée Claude vision | Tesseract local, comparaison rapidfuzz).
+
+| Page | Rôle |
+|---|---|
+| `/` | **Contrôle des contrats** : campagnes, tableau (20/50/100 par page, filtres RAS/REAMRQUE), fiche éditable, visionneuse de pièces, exports |
+| `/identite` | Contrôle d'identité **par lot** (CSV + scans → verdicts, Excel) — outil v2 historique |
+| `/docs` | API (OpenAPI) |
+
+## Parcours (page `/`)
+1. **Importer** : CSV DIGIFOR (`### TABLE:`), ZIP (CSV, scans, `Inventaire_pieces.csv`, `campagne.json`/rapport JSON), dossier de scans, images/PDF.
+   Les imports se cumulent dans la campagne ; envoi par lots (60 fichiers / 80 Mo).
+2. Le tableau applique immédiatement les **règles** (`app/rules.json`, port fidèle de la v1) : type de contrat reconnu, superficie,
+   durée (unité ans/mois/jours/semaines, > 99 ans), dates début/fin (garantie), numéro de demande, pourcentages de partage (= 100 %),
+   taux de récolte, signatures, nom ≠ signataire, champs obligatoires inexploitables, identité des acteurs.
+3. **Contrôler les pièces** (moteur au choix) : lit chaque scan (cache SHA-256), rattache les pièces aux acteurs (références du CSV,
+   nom de fichier, Inventaire, contenu lu), compare Nom / N° de pièce → pastille *Concordant / Écart détecté / À contrôler*
+   et observations « Identité ». Une lecture incertaine ne produit jamais d'écart (→ « non vérifiable »).
+4. **Fiche** : champs du contrat et des acteurs modifiables (réévaluation instantanée côté serveur), pièces rattachées, visionneuse
+   (pivoter / zoom / ouvrir), JSON de lecture, observation complémentaire, levée d'une observation d'import après vérification,
+   **Importer une pièce pour cet acteur**, **Enregistrer**.
+5. **Campagnes sauvegardées** : dernier chargement / dernière sauvegarde, ouverture, suppression définitive (pièces comprises).
+6. **Exports** : *Excel des remarques* (13 colonnes : Numéro de contrat … Superficie, Autre Observations ; un classeur par fichier source
+   + `Global/` si plusieurs sources, nom `Rque_contrat_<source>.xlsx`) ; *Dossier complet avec pièces* (`Global/`, `RAS/`, `REAMRQUE/`,
+   `Global/Inputs/`, `campagne.json`, `Controle_pieces.xlsx`, `OCR/resultats.json`, `PIECE SCANNEE/<contrat>/…`, `Inventaire_pieces.csv`, `LEGENDE.txt`).
+
+Stockage : `DATA_DIR` (défaut `./data`) — `campaigns/<id>/campaign.json`, `scans/`, `ocr.json`. **En production, monter un volume
+persistant sur `/data`** (sans disque, les campagnes disparaissent au redémarrage/redéploiement).
+
 # PRESFOR v2 — Contrôle des pièces d'identité
 
 Vérifie que **Nom, Prénoms et N° de pièce** saisis par les agents (CSV) correspondent à la pièce scannée

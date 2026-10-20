@@ -17,6 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from .campaign_api import router as campaign_router
 from .config import ROOT, Settings, get_settings
 from .csv_loader import build_rows, guess_mapping, load_csv
 from .export import to_xlsx
@@ -28,7 +29,7 @@ from .pipeline import (ScanItem, collect_scans, extract_all, extract_scan, resul
 log = logging.getLogger("presfor")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-app = FastAPI(title="PRESFOR — Contrôle des pièces d'identité", version="2.0")
+app = FastAPI(title="PRESFOR — Contrôle des contrats", version="3.0")
 STATIC = Path(__file__).parent / "static"
 
 
@@ -46,6 +47,9 @@ async def basic_auth(request: Request, call_next):
     if not secrets.compare_digest(got, f"{user}:{pwd}"):
         return Response("Authentification requise", 401, headers={"WWW-Authenticate": 'Basic realm="PRESFOR"'})
     return await call_next(request)
+
+
+app.include_router(campaign_router)
 
 
 @app.get("/healthz", include_in_schema=False)
@@ -135,6 +139,11 @@ def _worker(job: Job, rows, settings: Settings) -> None:
 # ------------------------------------------------------------------ routes
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
+    return FileResponse(STATIC / "app.html")
+
+
+@app.get("/identite", include_in_schema=False)
+def identity_tool() -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 

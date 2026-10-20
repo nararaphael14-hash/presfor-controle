@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRESFOR — Contrôle des contrats</title>
+<style>
+:root{--g:#163f38;--g2:#1f5a50;--g3:#e7f0ee;--bg:#f4f6f5;--card:#fff;--tx:#18211f;--mut:#62706c;--line:#dbe3e0;--ok:#1b7a4b;--okbg:#e3f4ea;--warn:#a55a00;--warnbg:#fff1dc;--bad:#b3261e;--badbg:#fde9e7}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;color:var(--tx);display:inline-flex;align-items:center;gap:6px}
+button:hover:not(:disabled){border-color:var(--g2)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--g);color:#fff;border-color:var(--g)}
+button.primary:hover:not(:disabled){background:var(--g2)}
+button.link{border:0;background:none;padding:0;color:var(--g2);text-decoration:underline}
+input,select,textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;background:#fff}
+textarea{min-height:76px;resize:vertical}
+label{display:block;font-size:12px;color:var(--mut)}
+label input,label textarea{margin-top:3px;color:var(--tx);font-size:14px}
+.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.shell.collapsed{grid-template-columns:0 1fr}
+.sidebar{background:var(--g);color:#d7e6e2;padding:18px 14px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.collapsed .sidebar{padding:0}
+.brand{font-weight:700;font-size:20px;color:#fff;margin-bottom:10px}
+.brand small{display:block;font-weight:400;font-size:11px;opacity:.75}
+.side-label{font-size:10px;letter-spacing:.12em;opacity:.6;margin:12px 6px 2px}
+.nav{background:none;border:0;color:#d7e6e2;width:100%;justify-content:flex-start;padding:10px;border-radius:8px}
+.nav:hover:not(:disabled){background:rgba(255,255,255,.08)}
+.nav.active{background:rgba(255,255,255,.16);color:#fff}
+.side-note{margin-top:auto;background:rgba(255,255,255,.08);padding:12px;border-radius:10px;font-size:12px}
+main{min-width:0}
+header.top{display:flex;align-items:center;gap:10px;padding:10px 24px;background:#fff;border-bottom:1px solid var(--line)}
+.crumb{color:var(--mut);flex:1}
+.content{padding:22px 24px 60px;max-width:1500px}
+.heading{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--g2);font-weight:600}
+h1{margin:2px 0 2px;font-size:26px}
+h2{margin:0 0 12px;font-size:16px}
+.heading p{margin:0;color:var(--mut)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.menu{position:relative}
+.pop{position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px;z-index:20;min-width:240px;display:none}
+.menu.open .pop{display:block}
+.pop button{width:100%;border:0;justify-content:flex-start}
+.pop button:hover:not(:disabled){background:var(--g3)}
+.banner{display:flex;align-items:center;gap:10px;background:var(--g3);border:1px solid #c5dbd5;padding:10px 14px;border-radius:10px;margin-bottom:12px}
+.banner.error{background:var(--badbg);border-color:#f2b8b5;color:var(--bad)}
+.banner>div{flex:1}
+.bar{height:6px;background:#cfe0dc;border-radius:3px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--g2);transition:width .3s}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
+.stats>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stats span{color:var(--mut);font-size:12px}
+.stats strong{display:block;font-size:28px}
+.stats small{color:var(--mut)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.campaign-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.campaign-bar input{max-width:360px;font-weight:600}
+.campaign-bar span{color:var(--mut);font-size:12px}
+.filters{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.filters input{max-width:340px}.filters select{max-width:200px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;color:var(--mut);padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 8px;border-bottom:1px solid #eef2f0;vertical-align:top}
+tr.row{cursor:pointer}tr.row:hover td{background:#f7faf9}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.badge.ok{background:var(--okbg);color:var(--ok)}.badge.warning{background:var(--warnbg);color:var(--warn)}.badge.bad{background:var(--badbg);color:var(--bad)}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;color:var(--mut)}
+.pager select{width:auto}
+.detail-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.detail-head h2{font-size:22px;margin:0}.detail-head p{margin:0;color:var(--mut)}.detail-head .sp{flex:1}
+.detail-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+@media(max-width:1000px){.detail-grid{grid-template-columns:1fr}.shell{grid-template-columns:1fr}.sidebar{display:none}}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+details.actor{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:#fcfdfd}
+details.actor>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px}
+details.actor>summary::-webkit-details-marker{display:none}
+.actor-name{flex:1}.actor-name small{display:block;color:var(--mut)}
+.actor-body{padding:4px 12px 14px;border-top:1px solid var(--line)}
+.checkbox{display:flex;align-items:center;gap:8px;margin:10px 0;color:var(--tx);font-size:14px}.checkbox input{width:auto;margin:0}
+.sticker{padding:9px 12px;border-radius:8px;margin:8px 0;font-weight:500}
+.sticker.valid{background:var(--okbg);color:var(--ok)}.sticker.invalid{background:var(--badbg);color:var(--bad)}.sticker.pending{background:var(--warnbg);color:var(--warn)}
+.idres{display:flex;gap:18px;flex-wrap:wrap;color:var(--mut);font-size:13px;margin-bottom:6px}.idres strong{color:var(--tx)}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.thumb{width:92px;height:70px;border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:#eef2f0;padding:0}
+.thumb.sel{border-color:var(--g2)}.thumb img{width:100%;height:100%;object-fit:cover}
+.viewer .stage{background:#1d2523;border-radius:10px;height:430px;overflow:auto;display:flex;align-items:center;justify-content:center}
+.viewer img{max-width:100%;max-height:100%;transition:transform .2s}
+.viewer .stage.zoom img{max-width:none;max-height:none;cursor:zoom-out}
+.viewer .tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}
+.viewer .hint{color:var(--mut);font-size:12px;margin:6px 0 0}
+.obs{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #eef2f0}
+.obs>div{flex:1}.obs p{margin:2px 0 0;white-space:pre-wrap}
+.tag{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.count{background:var(--g3);color:var(--g);border-radius:99px;padding:1px 8px;font-size:12px}
+.success{color:var(--ok);font-weight:600}
+pre{background:#f1f5f4;padding:8px;border-radius:8px;overflow:auto;max-height:220px;font-size:12px;white-space:pre-wrap}
+.hrow{display:flex;gap:10px;align-items:stretch;margin-bottom:8px}
+.hrow .hist{flex:1;justify-content:flex-start;text-align:left;padding:12px 14px}
+.hist small{display:block;color:var(--mut)}
+.empty{padding:30px;text-align:center;color:var(--mut)}
+.danger{color:var(--bad)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="fileAny" multiple hidden accept=".csv,.zip,.json,.jpg,.jpeg,.png,.webp,.tif,.tiff,.pdf">
+<input type="file" id="fileDir" multiple hidden webkitdirectory directory>
+<input type="file" id="fileOne" hidden accept="image/jpeg,image/png,image/webp,application/pdf">
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dateLabel = v => v && !isNaN(Date.parse(v)) ? new Date(v).toLocaleString("fr-FR", {dateStyle:"short", timeStyle:"short"}) : "Non disponible";
+const norm = v => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/gi, "").toUpperCase();
+const MANDATORY = ["Propriétaire", "Bénéficiaire"];
+
+const S = {view:"contracts", campaign:null, history:[], sel:null, piece:"", page:0, pageSize:20, search:"", status:"Tous",
+           busy:"", progress:null, notice:"", error:"", dirty:false, sidebar:true, backend:"auto", health:null, job:null, rot:0, zoom:false,
+           attach:null};
+let evalTimer = null, pollTimer = null;
+
+// ---------------------------------------------------------------- API
+async function api(url, opts = {}) {
+  const r = await fetch(url, opts);
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.detail || msg; } catch {}
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+  return r;
+}
+const json = async (url, opts) => (await api(url, opts)).json();
+const run = async (label, fn) => {
+  S.error = ""; S.busy = label; S.progress = null; render();
+  try { await fn(); } catch (e) { S.error = e.message || String(e); }
+  S.busy = ""; S.progress = null; render();
+};
+async function refreshHistory() { S.history = await json("/api/campaigns"); }
+
+// ---------------------------------------------------------------- données
+const cur = () => S.campaign?.contracts.find(c => c.key === S.sel);
+const hasObs = c => c.observations.length > 0;
+const scanSet = () => new Set(S.campaign?.scanNames || []);
+function resolve(ref) {
+  const names = scanSet(), base = String(ref).replace(/\\/g, "/").split("/").pop();
+  if (names.has(ref)) return ref;
+  const al = S.campaign.aliases || {};
+  if (al[ref] && names.has(al[ref])) return al[ref];
+  if (al[base] && names.has(al[base])) return al[base];
+  return names.has(base) ? base : null;
+}
+function actorScans(a) {
+  const chk = a.automatic;
+  const fromCheck = chk && chk.version === 3 && norm(chk.expectedName) === norm(a.name) && norm(chk.expectedId) === norm(a.id) ? chk.pieces : [];
+  const own = (a.pieces || []).map(resolve).filter(Boolean);
+  return [...new Set([...own, ...fromCheck])];
+}
+function autoState(a) {
+  const k = a.automatic;
+  const current = k && k.version === 3 && norm(k.expectedName) === norm(a.name) && norm(k.expectedId) === norm(a.id);
+  return current ? k : null;
+}
+
+// ---------------------------------------------------------------- évaluation (règles côté serveur)
+function scheduleEval() {
+  S.dirty = true;
+  clearTimeout(evalTimer);
+  evalTimer = setTimeout(async () => {
+    const c = cur(); if (!c) return;
+    const key = c.key;
+    try {
+      const r = await json(`/api/campaigns/${S.campaign.id}/evaluate`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(c)});
+      const i = S.campaign.contracts.findIndex(x => x.key === key);
+      if (i >= 0) {
+        // on garde la saisie en cours : seules les observations et les contrôles automatiques sont remplacés
+        const live = S.campaign.contracts[i];
+        live.observations = r.observations;
+        live.actors.forEach((a, n) => { if (r.actors[n]) a.automatic = r.actors[n].automatic; });
+      }
+      paintFicheLive();
+    } catch (e) { S.error = e.message; render(); }
+  }, 450);
+}
+async function save(imported = false) {
+  const c = S.campaign; if (!c) return;
+  const r = await json(`/api/campaigns/${c.id}`, {method:"PUT", headers:{"Content-Type":"application/json"},
+                       body:JSON.stringify({title:c.title, contracts:c.contracts})});
+  c.updated = r.updated; c.loadedAt = r.loadedAt; c.contracts = r.contracts; S.dirty = false;
+  await refreshHistory();
+}
+
+// ---------------------------------------------------------------- import
+const CHUNK_FILES = 60, CHUNK_BYTES = 80e6;
+async function importFiles(list) {
+  const files = [...list]; if (!files.length) return;
+  await run("Préparation de l’import…", async () => {
+    if (!S.campaign) {
+      const fd = new FormData(); fd.append("title", "Nouvelle campagne");
+      S.campaign = await json("/api/campaigns", {method:"POST", body:fd});
+    }
+    const ok = files.filter(f => /\.(csv|zip|json|jpe?g|png|webp|tiff?|pdf)$/i.test(f.name));
+    const batches = []; let b = [], size = 0;
+    for (const f of ok) {
+      if (b.length && (b.length >= CHUNK_FILES || size + f.size > CHUNK_BYTES)) { batches.push(b); b = []; size = 0; }
+      b.push(f); size += f.size;
+    }
+    if (b.length) batches.push(b);
+    let contracts = 0, scans = 0, last = null;
+    for (const [i, batch] of batches.entries()) {
+      S.busy = `Envoi des fichiers : lot ${i + 1}/${batches.length}…`; S.progress = (i / batches.length) * 100; render();
+      const fd = new FormData();
+      batch.forEach(f => fd.append("files", f, f.webkitRelativePath ? f.webkitRelativePath.split("/").pop() : f.name));
+      const r = await json(`/api/campaigns/${S.campaign.id}/import`, {method:"POST", body:fd});
+      contracts += r.imported; scans += r.scans; last = r.campaign;
+    }
+    if (last) { S.campaign = last; S.view = "contracts"; S.sel = null; S.page = 0; S.dirty = false; }
+    await refreshHistory();
+    S.notice = `${contracts} contrats importés · ${scans} pièces ajoutées · ${S.campaign.scanNames.length} pièces disponibles`;
+  });
+}
+
+async function runIdentity() {
+  const c = S.campaign; if (!c) return;
+  const fd = new FormData(); fd.append("backend", S.backend);
+  try { S.job = await json(`/api/campaigns/${c.id}/identity/run`, {method:"POST", body:fd}); }
+  catch (e) { S.error = e.message; render(); return; }
+  pollJob();
+}
+function pollJob() {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    const c = S.campaign; if (!c) return;
+    try {
+      S.job = await json(`/api/campaigns/${c.id}/identity/status`);
+      if (S.job.status === "running") { render(); pollJob(); return; }
+      if (S.job.status === "done") {
+        const keep = {sel:S.sel, piece:S.piece, view:S.view};
+        S.campaign = await json(`/api/campaigns/${c.id}`);
+        Object.assign(S, keep);
+        S.notice = "Contrôle des pièces terminé.";
+      } else if (S.job.status === "error") S.error = "Contrôle des pièces : " + S.job.error;
+      S.job = null; render();
+    } catch (e) { S.error = e.message; S.job = null; render(); }
+  }, 1200);
+}
+
+// ---------------------------------------------------------------- rendu
+function badge(c) { return hasObs(c) ? '<span class="badge warning">REAMRQUE</span>' : '<span class="badge ok">RAS</span>'; }
+function actorBadge(a) {
+  const k = autoState(a);
+  if (k?.status === "validé") return '<span class="badge ok">Concordant</span>';
+  if (k?.status === "non conforme") return '<span class="badge bad">Écart détecté</span>';
+  return '<span class="badge warning">À contrôler</span>';
+}
+function sticker(a) {
+  const k = autoState(a);
+  if (k?.status === "validé") return `<div class="sticker valid">✔ Validé automatiquement — ${esc(k.detail)}</div>`;
+  if (k?.status === "non conforme") return `<div class="sticker invalid">✖ ${esc(k.detail)}</div>`;
+  if (!MANDATORY.includes(a.role) && !actorScans(a).length) return '<div class="sticker pending">Pièce facultative — absence non bloquante</div>';
+  return `<div class="sticker pending">${esc(k?.detail || (actorScans(a).length ? "Contrôle automatique en attente — lancez « Contrôler les pièces »" : "Pièce absente"))}</div>`;
+}
+function idResults(a) {
+  const k = autoState(a);
+  return `<div class="idres"><span>Nom et prénom : <strong>${esc(k?.nameStatus || "Non vérifiable")}</strong></span>
+    <span>Numéro de pièce : <strong>${esc(k?.idStatus || "Non vérifiable")}</strong></span></div>
+    <details><summary>Comparaison CSV ↔ pièce scannée</summary><p>Nom CSV : ${esc(a.name || "Non renseigné")}<br>
+    Nom lu : ${esc(k?.observedName || "Lecture en attente ou insuffisante")}<br>Numéro CSV : ${esc(a.id || "Non renseigné")}<br>
+    Numéro lu : ${esc(k?.observedId || "Lecture en attente ou insuffisante")}<br>Qualité de lecture : ${k ? esc(k.confidence) + " %" : "—"}<br>
+    Score de correspondance : ${k?.score ?? "—"}<br>Type : ${esc((k?.documentTypes || []).join(", ") || "Non déterminé")}</p></details>`;
+}
+function renderContracts() {
+  const rows = S.campaign?.contracts || [];
+  const ras = rows.filter(c => !hasObs(c)).length;
+  const q = norm(S.search);
+  const filtered = rows.filter(c => (S.status === "Tous" || (S.status === "RAS" ? !hasObs(c) : hasObs(c)))
+      && norm(`${c.number} ${c.village} ${c.type} ${c.actors.map(a => a.name).join(" ")}`).includes(q));
+  const pages = Math.max(1, Math.ceil(filtered.length / S.pageSize));
+  if (S.page >= pages) S.page = pages - 1;
+  const slice = filtered.slice(S.page * S.pageSize, (S.page + 1) * S.pageSize);
+  const unsigned = rows.reduce((n, c) => n + c.actors.filter(a => !a.signed).length, 0);
+  const ctl = rows.reduce((n, c) => n + c.actors.filter(a => autoState(a)?.status === "validé").length, 0);
+  return `<div class="stats">
+    <div><span>Contrats analysés</span><strong>${rows.length}</strong><small>Tous les types pris en compte</small></div>
+    <div><span>✔ Sans observation</span><strong>${ras}</strong><small>Export dans RAS</small></div>
+    <div><span>⚠ Avec observations</span><strong>${rows.length - ras}</strong><small>Export dans REAMRQUE</small></div>
+    <div><span>Signatures absentes</span><strong>${unsigned}</strong><small>Nom, contact et qualité disponibles</small></div>
+    <div><span>Pièces validées</span><strong>${ctl}</strong><small>${S.campaign?.scanNames.length || 0} scans · ${S.campaign?.ocrCount || 0} lus</small></div></div>
+    ${S.campaign ? `<div class="campaign-bar"><input id="title" aria-label="Nom de la campagne" value="${esc(S.campaign.title)}">
+      <span>Dernier chargement : ${dateLabel(S.campaign.loadedAt)}<br>${S.campaign.updated ? "Dernière sauvegarde : " + dateLabel(S.campaign.updated) : "Non enregistrée"}${S.dirty ? " · <b>modifications non enregistrées</b>" : ""}</span>
+      <button data-act="save">💾 Enregistrer</button></div>` : ""}
+    ${rows.length ? `<div class="panel"><div class="filters"><input id="search" placeholder="Rechercher un contrat, un village, un nom…" value="${esc(S.search)}">
+      <select id="status">${["Tous", "RAS", "REAMRQUE"].map(s => `<option ${s === S.status ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div style="overflow:auto"><table><thead><tr><th>Contrat</th><th>Type</th><th>Village</th><th>Propriétaire</th><th>Bénéficiaire</th><th>Observations</th><th>Statut</th></tr></thead><tbody>
+      ${slice.map(c => `<tr class="row" data-act="open" data-key="${esc(c.key)}"><td><strong>${esc(c.number)}</strong></td><td>${esc(c.type)}</td><td>${esc(c.village)}</td>
+        <td>${esc(c.actors.find(a => a.role === "Propriétaire")?.name || "")}</td><td>${esc(c.actors.find(a => a.role === "Bénéficiaire")?.name || "")}</td>
+        <td>${c.observations.length}</td><td>${badge(c)}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">Aucun contrat ne correspond.</td></tr>'}
+      </tbody></table></div>
+      <div class="pager">${filtered.length} contrats · Lignes
+        <select id="psize">${[20, 50, 100].map(n => `<option ${n === S.pageSize ? "selected" : ""}>${n}</option>`).join("")}</select>
+        <button data-act="prev" ${S.page === 0 ? "disabled" : ""}>←</button> ${S.page + 1} / ${pages}
+        <button data-act="next" ${S.page >= pages - 1 ? "disabled" : ""}>→</button></div></div>`
+    : '<div class="panel empty"><h2>Aucun contrat</h2><p>Importez un export CSV (DIGIFOR) et/ou un ZIP de scans pour commencer.</p></div>'}`;
+}
+function renderHistory() {
+  return `<div class="panel"><h2>Campagnes enregistrées</h2>${S.history.length ? S.history.map(h => `<div class="hrow">
+    <button class="hist" data-act="load" data-id="${esc(h.id)}"><div><strong>${esc(h.title)}</strong><small>${h.contracts} contrats · Dernier chargement : ${dateLabel(h.loadedAt)}</small>
+    <small>Dernière sauvegarde : ${dateLabel(h.updated)}</small></div></button>
+    <button class="danger" data-act="del" data-id="${esc(h.id)}" data-title="${esc(h.title)}">🗑 Supprimer</button></div>`).join("")
+    : "<p>Aucune campagne sauvegardée. Importez vos fichiers pour commencer.</p>"}</div>`;
+}
+function renderActor(a, i, c) {
+  const scans = actorScans(a);
+  return `<details class="actor" ${i === 0 ? "open" : ""} data-i="${i}"><summary><span class="actor-name"><strong>${esc(a.role)}</strong><small>${esc(a.name || "Nom non renseigné")}</small></span>
+    <span class="abadge">${actorBadge(a)}</span></summary><div class="actor-body">
+    <div class="fields">${[["name", "Nom et prénom"], ["phone", "Contact"], ["id", "Numéro de pièce"]].map(([k, l]) =>
+      `<label>${l}<input data-a="${i}" data-k="${k}" value="${esc(a[k])}"></label>`).join("")}</div>
+    <label class="checkbox"><input type="checkbox" data-a="${i}" data-k="signed" ${a.signed ? "checked" : ""}>Signature présente</label>
+    <div class="astatus">${sticker(a)}${idResults(a)}</div>
+    <div class="thumbs">${scans.map(n => `<button class="thumb ${n === S.piece ? "sel" : ""}" data-act="piece" data-name="${esc(n)}" title="${esc(n)}"><img loading="lazy" src="${scanUrl(n)}" alt=""></button>`).join("")
+      || '<small style="color:var(--mut)">Aucun scan rattaché.</small>'}</div>
+    <p><button data-act="attach" data-i="${i}">📎 Importer une pièce pour cet acteur</button></p></div></details>`;
+}
+const scanUrl = (n, page = 0) => `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}${page ? "?page=" + page : ""}`;
+function renderObs(c) {
+  return `<h2>Observations <span class="count">${c.observations.length}</span></h2>${c.observations.length ? c.observations.map((o, i) => `<div class="obs"><div>
+    <span class="tag">${esc(o.group)} · ${esc(o.level)}</span><p>${esc(o.text)}</p></div>
+    ${["Import", "OCR"].includes(o.group) || o.origin === "historique" ? `<button data-act="lift" data-i="${i}" title="Lever après vérification">✔</button>` : ""}</div>`).join("")
+    : '<p class="success">Aucun point à signaler — RAS.</p>'}
+    <label style="margin-top:10px">Observation complémentaire<textarea id="manual" placeholder="Précisez une observation…">${esc(c.manual)}</textarea></label>`;
+}
+function renderViewer(c) {
+  const all = [...new Set([...c.actors.flatMap(actorScans), ...(S.piece ? [S.piece] : [])])];
+  const p = S.piece;
+  const owner = c.actors.find(a => actorScans(a).includes(p));
+  return `<h2>Pièce</h2><div class="viewer">${p ? `<div class="tools"><strong style="flex:1;align-self:center">${esc(owner ? owner.role + " — " + owner.name : "Pièce rattachée au contrat")}</strong>
+    <button data-act="rot">⟳ Pivoter</button><button data-act="zoom">${S.zoom ? "Ajuster" : "Zoom"}</button>
+    <a href="${scanUrl(p)}" target="_blank" rel="noopener"><button>↗ Ouvrir</button></a></div>
+    <div class="stage ${S.zoom ? "zoom" : ""}"><img id="vimg" data-act="zoom" src="${scanUrl(p)}" style="transform:rotate(${S.rot}deg)" alt="Pièce"
+      onerror="this.replaceWith(Object.assign(document.createElement('p'),{textContent:'Image illisible dans le navigateur — utilisez Ouvrir.',style:'color:#fff;padding:20px'}))"></div>
+    <details id="exj"><summary>Lecture automatique (JSON)</summary><pre id="exjpre">Chargement…</pre></details>`
+    : '<div class="stage"><p style="color:#9fb2ad">Sélectionnez une pièce dans la liste d’un acteur.</p></div>'}
+    <div class="thumbs">${all.map(n => `<button class="thumb ${n === p ? "sel" : ""}" data-act="piece" data-name="${esc(n)}" title="${esc(n)}"><img loading="lazy" src="${scanUrl(n)}" alt=""></button>`).join("")}</div>
+    <p class="hint">Consultez la pièce avant de confirmer l’identité.</p></div>`;
+}
+function renderFiche() {
+  const c = cur(); if (!c) return "";
+  const labels = [["type", "Type"], ["village", "Village"], ["surface", "Superficie"], ["duration", "Durée"], ["cf", "CF (numéro ou présence)"],
+                  ["request", "Numéro de demande"], ["ownerShare", "Part propriétaire (%)"], ["beneficiaryShare", "Part bénéficiaire (%)"]];
+  return `<button data-act="back">← Retour aux contrats</button>
+    <div class="detail-head"><div><h2>${esc(c.number)}</h2><p>${esc(c.type)} · ${esc(c.village)}</p></div><span id="cbadge">${badge(c)}</span><span class="sp"></span>
+      <button data-act="save">💾 Enregistrer</button></div>
+    <div class="detail-grid"><div>
+      <section class="panel"><h2>Informations du contrat</h2><div class="fields">${labels.map(([k, l]) =>
+        `<label>${l}<input data-c="${k}" value="${esc(c[k] ?? "")}" ${k === "surface" ? 'inputmode="decimal"' : ""}></label>`).join("")}</div>
+        ${c.raw?.snapshot ? '<p class="hint">Résultat historique : importez le CSV source pour contrôler à nouveau CF et demande.</p>' : ""}</section>
+      <section class="panel"><h2>Acteurs & signatures</h2><div id="actors">${c.actors.map((a, i) => renderActor(a, i, c)).join("") || "<p>Aucun acteur.</p>"}</div></section></div>
+    <div><section class="panel" id="viewer">${renderViewer(c)}</section><section class="panel" id="obs">${renderObs(c)}</section></div></div>`;
+}
+function paintFicheLive() {   // met à jour badges / observations / contrôles sans perdre la saisie
+  const c = cur(); if (!c || S.view !== "fiche") return;
+  const b = $("#cbadge"); if (b) b.innerHTML = badge(c);
+  const o = $("#obs"); if (o) { const keep = $("#manual")?.value; o.innerHTML = renderObs(c); if (keep !== undefined) $("#manual").value = keep; }
+  document.querySelectorAll("details.actor").forEach(d => {
+    const a = c.actors[+d.dataset.i]; if (!a) return;
+    d.querySelector(".abadge").innerHTML = actorBadge(a);
+    d.querySelector(".astatus").innerHTML = sticker(a) + idResults(a);
+  });
+}
+function render() {
+  const rows = S.campaign?.contracts || [];
+  const crumb = S.view === "history" ? "Campagnes" : S.view === "fiche" && cur() ? esc(cur().number) : "Vue d’ensemble";
+  const job = S.job?.status === "running" ? S.job : null;
+  $("#app").innerHTML = `<div class="shell ${S.sidebar ? "" : "collapsed"}"><aside class="sidebar">
+    <div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
+    <button class="nav ${S.view !== "history" ? "active" : ""}" data-act="nav" data-v="contracts">📋 Contrats</button>
+    <button class="nav ${S.view === "history" ? "active" : ""}" data-act="nav" data-v="history">📁 Campagnes sauvegardées</button>
+    <div class="side-label">OUTILS</div><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
+    <div class="side-note"><strong>Vos règles, appliquées</strong><p>Signature renseignée : présente.<br>Numéro de demande à renseigner pour chaque contrat.</p>
+    ${S.health ? `<small>Moteur pièces : ${esc(S.health.backend_par_defaut)}</small>` : ""}</div></aside>
+  <main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle des contrats › ${crumb}</div></header>
+  <div class="content"><div class="heading"><div><span class="eyebrow">QUALITÉ DES DONNÉES</span>
+    <h1>${S.view === "history" ? "Vos campagnes" : S.view === "fiche" ? "Fiche de contrôle" : "Contrôle des contrats"}</h1>
+    <p>${S.view === "fiche" ? "Vérifiez les informations, consultez les pièces et renseignez vos observations." : "Une vue claire des contrats, des pièces et des points à corriger."}</p></div>
+    <div class="actions">
+      <div class="menu"><button data-act="menu">⬆ Importer ▾</button><div class="pop"><button data-act="pick" data-t="any">⬆ Importer fichiers / ZIP</button><button data-act="pick" data-t="dir">📁 Importer un dossier de scans</button></div></div>
+      ${rows.length ? `<select id="backend" title="Moteur de lecture des pièces" style="width:auto"><option value="auto" ${S.backend === "auto" ? "selected" : ""}>Moteur : auto</option>
+        <option value="claude" ${S.backend === "claude" ? "selected" : ""}>Claude (vision)</option><option value="tesseract" ${S.backend === "tesseract" ? "selected" : ""}>Tesseract (local)</option></select>
+        <button data-act="ident" ${job || !S.campaign.scanNames.length ? "disabled" : ""}>🔎 Contrôler les pièces</button>
+        <button class="primary" data-act="remarks" ${S.busy ? "disabled" : ""}>⬇ Excel des remarques</button>
+        <div class="menu"><button data-act="menu">⬇ Autres exports ▾</button><div class="pop"><button data-act="full">⬇ Dossier complet avec pièces</button></div></div>` : ""}
+    </div></div>
+    ${S.error ? `<div class="banner error" role="alert"><div>${esc(S.error)}</div><button data-act="clr-err">✕</button></div>` : ""}
+    ${S.notice ? `<div class="banner" role="status"><div>${esc(S.notice)}</div><button data-act="clr-notice">✕</button></div>` : ""}
+    ${S.busy ? `<div class="banner" role="status"><div>${esc(S.busy)}${S.progress != null ? `<div class="bar"><i style="width:${S.progress}%"></i></div>` : ""}</div></div>` : ""}
+    ${job ? `<div class="banner" role="status"><div>Lecture des pièces : ${job.done}/${job.total || "…"}<div class="bar"><i style="width:${job.total ? (100 * job.done / job.total) : 3}%"></i></div></div></div>` : ""}
+    ${S.view === "history" ? renderHistory() : S.view === "fiche" ? renderFiche() : renderContracts()}
+  </div></main></div>`;
+  if (S.view === "fiche" && S.piece) loadExtraction();
+}
+async function loadExtraction() {
+  const el = $("#exjpre"); if (!el) return;
+  const name = S.piece;
+  try {
+    const r = await json(`/api/campaigns/${S.campaign.id}/extraction/${encodeURIComponent(name)}`);
+    if (S.piece === name && $("#exjpre")) $("#exjpre").textContent = Object.keys(r).length ? JSON.stringify(r.extraction || r, null, 2) : "Pas encore lu — lancez « Contrôler les pièces ».";
+  } catch { if ($("#exjpre")) $("#exjpre").textContent = "Lecture indisponible."; }
+}
+
+// ---------------------------------------------------------------- événements
+document.addEventListener("click", async ev => {
+  if (!ev.target.closest(".menu")) document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
+  const t = ev.target.closest("[data-act]"); if (!t) return;
+  const act = t.dataset.act;
+  if (act === "menu") { t.parentElement.classList.toggle("open"); return; }
+  if (act === "pick") { document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open")); $(t.dataset.t === "dir" ? "#fileDir" : "#fileAny").click(); return; }
+  if (act === "side") { S.sidebar = !S.sidebar; render(); return; }
+  if (act === "nav") { S.view = t.dataset.v; S.sel = null; S.piece = ""; if (S.view === "history") await refreshHistory().catch(() => {}); render(); return; }
+  if (act === "open") { S.sel = t.dataset.key; S.view = "fiche"; S.piece = ""; S.rot = 0; S.zoom = false; render(); const c = cur(); const f = c && c.actors.flatMap(actorScans)[0]; if (f) { S.piece = f; render(); } return; }
+  if (act === "back") { S.view = "contracts"; S.sel = null; S.piece = ""; render(); return; }
+  if (act === "prev") { S.page--; render(); return; }
+  if (act === "next") { S.page++; render(); return; }
+  if (act === "clr-err") { S.error = ""; render(); return; }
+  if (act === "clr-notice") { S.notice = ""; render(); return; }
+  if (act === "piece") { S.piece = t.dataset.name; S.rot = 0; S.zoom = false; render(); return; }
+  if (act === "rot") { S.rot = (S.rot + 90) % 360; $("#vimg").style.transform = `rotate(${S.rot}deg)`; return; }
+  if (act === "zoom") { S.zoom = !S.zoom; render(); return; }
+  if (act === "lift") { const c = cur(); c.observations.splice(+t.dataset.i, 1); scheduleEval(); paintFicheLive(); return; }
+  if (act === "save") { await run("Enregistrement…", async () => { await save(); S.notice = "Campagne enregistrée."; }); return; }
+  if (act === "ident") { await runIdentity(); return; }
+  if (act === "attach") { S.attach = +t.dataset.i; $("#fileOne").click(); return; }
+  if (act === "remarks") { await download(`/api/campaigns/${S.campaign.id}/export/remarks`, "Préparation de l’Excel des remarques…", r => `${r.headers.get("X-Contrats-Exportes")} contrats exportés dans l’Excel des remarques.`); return; }
+  if (act === "full") { document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
+    await download(`/api/campaigns/${S.campaign.id}/export/full`, "Assemblage du dossier complet (les pièces peuvent être volumineuses)…",
+      r => `${r.headers.get("X-Pieces-Exportees")} pièces exportées dans PIECE SCANNEE${+r.headers.get("X-Pieces-Introuvables") ? " · " + r.headers.get("X-Pieces-Introuvables") + " références introuvables (voir inventaire)" : ""}`); return; }
+  if (act === "load") { await run("Ouverture…", async () => { S.campaign = await json(`/api/campaigns/${t.dataset.id}`); S.view = "contracts"; S.sel = null; S.piece = ""; S.page = 0; S.dirty = false; S.notice = "Campagne chargée. Les pièces sauvegardées sont disponibles."; }); return; }
+  if (act === "del") {
+    if (!confirm(`Supprimer la campagne « ${t.dataset.title} » et toutes ses pièces sauvegardées ? Cette action est définitive.`)) return;
+    await run("Suppression…", async () => {
+      await api(`/api/campaigns/${t.dataset.id}`, {method:"DELETE"});
+      if (S.campaign?.id === t.dataset.id) { S.campaign = null; S.sel = null; }
+      await refreshHistory(); S.notice = "Campagne et pièces supprimées.";
+    }); return;
+  }
+});
+async function download(url, label, msg) {
+  await run(label, async () => {
+    if (S.dirty) await save();
+    const r = await api(url);
+    const blob = await r.blob();
+    const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(r.headers.get("Content-Disposition") || "");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = m ? decodeURIComponent(m[1]) : "export";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    S.notice = msg(r);
+  });
+}
+document.addEventListener("input", ev => {
+  const t = ev.target, c = cur();
+  if (t.id === "title") { S.campaign.title = t.value; S.dirty = true; return; }
+  if (t.id === "search") { S.search = t.value; S.page = 0; const pos = t.selectionStart; render(); const n = $("#search"); n.focus(); n.setSelectionRange(pos, pos); return; }
+  if (!c) return;
+  if (t.dataset.c) { c[t.dataset.c] = t.value; scheduleEval(); }
+  else if (t.dataset.a !== undefined) {
+    const a = c.actors[+t.dataset.a], k = t.dataset.k;
+    a[k] = t.type === "checkbox" ? t.checked : t.value; scheduleEval();
+  } else if (t.id === "manual") { c.manual = t.value; scheduleEval(); }
+});
+document.addEventListener("change", ev => {
+  const t = ev.target;
+  if (t.id === "status") { S.status = t.value; S.page = 0; render(); }
+  else if (t.id === "psize") { S.pageSize = +t.value; S.page = 0; render(); }
+  else if (t.id === "backend") S.backend = t.value;
+});
+$("#fileAny").addEventListener("change", e => { importFiles(e.target.files).then(() => { e.target.value = ""; }); });
+$("#fileDir").addEventListener("change", e => { importFiles(e.target.files).then(() => { e.target.value = ""; }); });
+$("#fileOne").addEventListener("change", async e => {
+  const f = e.target.files[0], c = cur(); e.target.value = "";
+  if (!f || !c || S.attach == null) return;
+  await run("Rattachement et sauvegarde du scan…", async () => {
+    const fd = new FormData(); fd.append("file", f); fd.append("contract", c.key); fd.append("actor", S.attach);
+    const r = await json(`/api/campaigns/${S.campaign.id}/attach`, {method:"POST", body:fd});
+    const keep = {sel:S.sel, view:S.view}; S.campaign = r.campaign; Object.assign(S, keep);
+    S.piece = r.name; S.notice = "Scan rattaché et sauvegardé.";
+  });
+});
+window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+(async () => {
+  render();
+  try { S.health = await json("/api/health"); await refreshHistory(); } catch (e) { S.error = "Historique indisponible : " + e.message; }
+  render();
+})();
+</script>
+</body>
+</html>

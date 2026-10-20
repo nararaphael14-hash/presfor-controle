@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
-ENV JOBS_DIR=/data/jobs CACHE_DIR=/data/cache
+ENV DATA_DIR=/data JOBS_DIR=/data/jobs CACHE_DIR=/data/cache
 VOLUME /data
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.server:app --host 0.0.0.0 --port ${PORT:-8000}"]

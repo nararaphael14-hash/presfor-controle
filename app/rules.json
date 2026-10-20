@@ -1,0 +1,212 @@
+{
+  "version": "5.2",
+  "source_types": "https://www.afor.ci/procedures/contractualisation",
+  "portee": "Contrôles de données et observations de complétude. Aucune décision juridique automatique de validité, de nationalité ou de transmission.",
+  "types": {
+    "PP_RECOLTE": {
+      "label": "Planter-partager - partage de la récolte",
+      "categorie": "agraire",
+      "alias": [
+        "planter partager recolte",
+        "pp recolte",
+        "planter-partager avec partage de la recolte",
+        "PLANTER_PARTAGER_RECOLTE"
+      ],
+      "duree_requise": true,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": true
+    },
+    "PP_PLANTATION": {
+      "label": "Planter-partager - partage de la plantation",
+      "categorie": "agraire",
+      "alias": [
+        "planter partager plantation",
+        "pp plantation",
+        "planter-partager avec partage de la plantation",
+        "PLANTER_PARTAGER_PLANTATION"
+      ],
+      "duree_requise": true,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [
+        "planterPartagerOwnerPercentage",
+        "planterPartagerBeneficiaryPercentage"
+      ],
+      "taux_recolte_a_verifier": false
+    },
+    "PP_TERRE": {
+      "label": "Planter-partager - partage de la terre",
+      "categorie": "agraire",
+      "alias": [
+        "planter partager terre",
+        "pp terre",
+        "planter-partager avec partage de la terre",
+        "PLANTER_PARTAGER_TERRE"
+      ],
+      "duree_requise": true,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [
+        "planterPartagerOwnerPercentage",
+        "planterPartagerBeneficiaryPercentage"
+      ],
+      "taux_recolte_a_verifier": false
+    },
+    "GARANTIE": {
+      "label": "Mise en garantie d'une parcelle en production",
+      "categorie": "agraire",
+      "alias": [
+        "mise en garantie",
+        "garantie",
+        "mise en garantie d'une parcelle",
+        "MISE_EN_GARANTIE",
+        "GARANTIE_PARCELLE"
+      ],
+      "duree_requise": false,
+      "dates_debut_fin_requises": true,
+      "montant_champs": [
+        "montantPret",
+        "montant"
+      ],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": false
+    },
+    "LOCATION": {
+      "label": "Location",
+      "categorie": "agraire",
+      "alias": [
+        "location",
+        "bail",
+        "contrat de location",
+        "LOCATION_PARCELLE"
+      ],
+      "duree_requise": true,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": false
+    },
+    "METAYAGE": {
+      "label": "Métayage",
+      "categorie": "agraire",
+      "alias": [
+        "metayage",
+        "contrat de metayage"
+      ],
+      "duree_requise": true,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": true
+    },
+    "PRET": {
+      "label": "Prêt de terre",
+      "categorie": "agraire",
+      "alias": [
+        "pret",
+        "pret de terre",
+        "mise a disposition gratuite"
+      ],
+      "duree_requise": true,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": false
+    },
+    "CESSION_PP_TERRE": {
+      "label": "Cession suite à un planter-partager (partage de la terre)",
+      "categorie": "cession",
+      "alias": [
+        "cession pp terre",
+        "cession suite planter partager",
+        "cession des suites d'un contrat de planter-partager",
+        "CESSION_PLANTER_PARTAGER_TERRE"
+      ],
+      "duree_requise": false,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": false
+    },
+    "DONATION": {
+      "label": "Donation",
+      "categorie": "cession",
+      "alias": [
+        "donation",
+        "contrat de donation",
+        "don",
+        "DONATION_PARCELLE"
+      ],
+      "duree_requise": false,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": false
+    },
+    "VENTE": {
+      "label": "Vente",
+      "categorie": "cession",
+      "alias": [
+        "vente",
+        "contrat de vente",
+        "VENTE_PARCELLE"
+      ],
+      "duree_requise": false,
+      "dates_debut_fin_requises": false,
+      "montant_champs": [
+        "montantVente",
+        "montant"
+      ],
+      "partage_champs": [],
+      "taux_recolte_a_verifier": false
+    }
+  },
+  "champs_cf": [
+    "num_cf",
+    "numCF",
+    "numeroCF",
+    "certificateNumber",
+    "NUM_CF",
+    "certificatFoncier",
+    "certificatFoncierNumero",
+    "numeroCertificatFoncier"
+  ],
+  "champs_dates": {
+    "signature": [
+      "dateSignature",
+      "date_signature",
+      "DATE_SIGNATURE"
+    ],
+    "debut": [
+      "dateDebut",
+      "date_debut",
+      "DATE_DEBUT"
+    ],
+    "fin": [
+      "dateFin",
+      "date_fin",
+      "DATE_FIN"
+    ]
+  },
+  "champs_presence_cf": [
+    "hasCF",
+    "hasCf",
+    "cfExiste",
+    "CF_EXISTE",
+    "hasCertificatFoncier"
+  ],
+  "champs_demande": [
+    "numeroDemande",
+    "numDemande",
+    "numero_demande",
+    "numeroDemandeRattachement",
+    "codeRequest",
+    "requestNumber",
+    "N_DEMANDE",
+    "NUMERO_DEMANDE",
+    "numRequest",
+    "request_code"
+  ]
+}
