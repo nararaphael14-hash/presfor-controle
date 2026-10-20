@@ -109,6 +109,7 @@ pre{background:#f1f5f4;padding:8px;border-radius:8px;overflow:auto;max-height:22
 <input type="file" id="fileAny" multiple hidden accept=".csv,.zip,.json,.jpg,.jpeg,.png,.webp,.tif,.tiff,.pdf">
 <input type="file" id="fileDir" multiple hidden webkitdirectory directory>
 <input type="file" id="fileOne" hidden accept="image/jpeg,image/png,image/webp,application/pdf">
+<script src="/static/jszip.min.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -194,7 +195,39 @@ async function save(imported = false) {
 }
 
 // ---------------------------------------------------------------- import
-const CHUNK_FILES = 60, CHUNK_BYTES = 80e6;
+const CHUNK_FILES = 40, CHUNK_BYTES = 12e6;
+const baseName = n => String(n).replace(/\\/g, "/").split("/").pop();
+async function expandZips(files) {      // dézippe dans le navigateur : des lots légers passent partout (proxy, mémoire du serveur)
+  const out = [];
+  for (const f of files) {
+    if (!/\.zip$/i.test(f.name)) { out.push(f); continue; }
+    S.busy = `Ouverture de ${f.name}…`; render();
+    const z = await JSZip.loadAsync(f);
+    const entries = Object.values(z.files).filter(e => !e.dir && !/__MACOSX|(^|\/)\./.test(e.name));
+    const hasSnap = entries.some(e => /(resultat|campagne)\.json$/i.test(e.name));
+    let i = 0;
+    for (const e of entries) {
+      const n = baseName(e.name);
+      const okExt = /\.(jpe?g|png|webp|tiff?|pdf|json)$/i.test(n) || (/\.csv$/i.test(n) && (!hasSnap || /inventaire_pieces\.csv$/i.test(n)));
+      if (!okExt) continue;
+      S.progress = 100 * (++i) / entries.length; S.busy = `Lecture de ${f.name} : ${i}/${entries.length}`;
+      if (i % 20 === 0) { render(); await new Promise(r => setTimeout(r, 0)); }
+      out.push(new File([await e.async("blob")], n));
+    }
+  }
+  return out;
+}
+function post(url, fd, onProg) {         // XHR : progression d'envoi réelle
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", url);
+    x.upload.onprogress = e => e.lengthComputable && onProg(e.loaded / e.total);
+    x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch {}
+      x.status < 300 ? resolve(j) : reject(new Error(typeof j.detail === "string" ? j.detail : `HTTP ${x.status}`)); };
+    x.onerror = () => reject(new Error("Connexion interrompue pendant l’envoi."));
+    x.send(fd);
+  });
+}
 async function importFiles(list) {
   const files = [...list]; if (!files.length) return;
   await run("Préparation de l’import…", async () => {
@@ -202,7 +235,9 @@ async function importFiles(list) {
       const fd = new FormData(); fd.append("title", "Nouvelle campagne");
       S.campaign = await json("/api/campaigns", {method:"POST", body:fd});
     }
-    const ok = files.filter(f => /\.(csv|zip|json|jpe?g|png|webp|tiff?|pdf)$/i.test(f.name));
+    const ok = (await expandZips(files)).filter(f => /\.(csv|json|jpe?g|png|webp|tiff?|pdf)$/i.test(f.name));
+    // CSV / JSON d'abord (contrats), puis les scans
+    ok.sort((a, b) => (/\.(csv|json)$/i.test(b.name) ? 1 : 0) - (/\.(csv|json)$/i.test(a.name) ? 1 : 0));
     const batches = []; let b = [], size = 0;
     for (const f of ok) {
       if (b.length && (b.length >= CHUNK_FILES || size + f.size > CHUNK_BYTES)) { batches.push(b); b = []; size = 0; }
@@ -211,10 +246,12 @@ async function importFiles(list) {
     if (b.length) batches.push(b);
     let contracts = 0, scans = 0, last = null;
     for (const [i, batch] of batches.entries()) {
-      S.busy = `Envoi des fichiers : lot ${i + 1}/${batches.length}…`; S.progress = (i / batches.length) * 100; render();
       const fd = new FormData();
-      batch.forEach(f => fd.append("files", f, f.webkitRelativePath ? f.webkitRelativePath.split("/").pop() : f.name));
-      const r = await json(`/api/campaigns/${S.campaign.id}/import`, {method:"POST", body:fd});
+      batch.forEach(f => fd.append("files", f, f.name));
+      const r = await post(`/api/campaigns/${S.campaign.id}/import`, fd, frac => {
+        S.progress = 100 * (i + frac) / batches.length;
+        S.busy = `Envoi des fichiers : lot ${i + 1}/${batches.length} (${Math.round(frac * 100)} %)`; render();
+      });
       contracts += r.imported; scans += r.scans; last = r.campaign;
     }
     if (last) { S.campaign = last; S.view = "contracts"; S.sel = null; S.page = 0; S.dirty = false; }

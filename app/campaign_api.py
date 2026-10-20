@@ -158,7 +158,7 @@ def _read_json(data: bytes, out: dict) -> None:
 async def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
     c = _get(cid)
     st = store()
-    out = {"contracts": [], "inputs": {}, "aliases": {}, "scans": 0}
+    out = {"contracts": [], "inputs": {}, "aliases": {}, "scans": 0, "inventory": []}
     tmp = st.dir(cid) / "_tmp"
     tmp.mkdir(exist_ok=True)
     try:
@@ -173,6 +173,9 @@ async def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
                     _unzip(zp, st, cid, out)
                 except zipfile.BadZipFile as e:
                     raise HTTPException(400, f"ZIP illisible : {name}") from e
+            elif ext == ".csv" and name.lower().endswith("inventaire_pieces.csv"):
+                import csv, io
+                out["inventory"].extend(csv.DictReader(io.StringIO(decode(await up.read())), delimiter=";"))
             elif ext == ".csv":
                 _read_csv(name, await up.read(), out)
             elif ext == ".json":
@@ -185,6 +188,8 @@ async def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
                 out["scans"] += 1
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    if out["inventory"]:
+        out["aliases"].update(inventory_aliases(out["inventory"], st.scan_names(cid)))
     merged = {x["key"]: x for x in c["contracts"]}
     for x in out["contracts"]:
         merged[x["key"]] = x

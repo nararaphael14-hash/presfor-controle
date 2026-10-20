@@ -142,6 +142,12 @@ def index() -> FileResponse:
     return FileResponse(STATIC / "app.html")
 
 
+@app.get("/static/jszip.min.js", include_in_schema=False)
+def jszip() -> FileResponse:
+    return FileResponse(STATIC / "jszip.min.js", media_type="application/javascript",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/identite", include_in_schema=False)
 def identity_tool() -> FileResponse:
     return FileResponse(STATIC / "index.html")
