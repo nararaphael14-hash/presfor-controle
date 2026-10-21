@@ -19,7 +19,7 @@ csv.field_size_limit(50_000_000)
 
 RULES = json.loads((Path(__file__).parent / "rules.json").read_text(encoding="utf-8"))
 MANDATORY_ROLES = ("Propriétaire", "Bénéficiaire")
-IDENTITY_VERSION = 3
+IDENTITY_VERSION = 4
 SURFACE_KEYS = ["surface", "superficie", "Superficie", "SUPERFICIE", "Surface", "SURFACE", "area", "terrainSurface",
                 "surfaceTerrain"]
 COLUMNS = ["Numéro de contrat", "Fichier source", "Type", "Village", "Propriétaire", "Bénéficiaire",
@@ -311,11 +311,11 @@ def actor_identity_issues(a: dict) -> list[str]:
             issues.append("Numero de piece non renseigné")
         if chk:
             if not chk.get("pieces"):
-                issues.append("Pièce manquante")
+                issues.append("Pièce manquante" + (f" ({chk['reason']})" if chk.get("reason") else ""))
             elif chk.get("status") != "validé" and not issues:
                 issues.append(chk.get("detail") or "Validité de la pièce non vérifiable")
         elif not a.get("pieces"):
-            issues.append("Pièce manquante")
+            issues.append("Pièce manquante (analyse des pièces non lancée ou non terminée)")
         elif not issues:
             issues.append("Contrôle de la pièce en attente")
     return list(dict.fromkeys(issues))

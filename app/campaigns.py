@@ -111,6 +111,7 @@ class Store:
     # -- scans
     def scan_names(self, cid: str) -> list[str]:
         d = self.dir(cid) / "scans"
+        persist.ensure(d)          # après un redémarrage, les scans sont restaurés depuis le stockage externe
         if not d.is_dir():
             return []
         return sorted(p.name for p in d.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_EXT)

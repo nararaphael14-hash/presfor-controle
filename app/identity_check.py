@@ -15,7 +15,7 @@ from .schemas import Extraction
 ROLE_CODES = {"Propriétaire": "PROP", "Bénéficiaire": "BEN", "Témoin propriétaire": "TP",
               "Témoin bénéficiaire": "TB", "Président CVGFR": "PCVGFR"}
 _CODE = re.compile(r"CT-\d{3}-\d{3}-\d{6}-\d{2}-[a-z]+", re.I)
-VERSION = 3
+VERSION = 4
 
 STATUS_FR = {"PROCHE": "proche (à vérifier)", "PARTIEL": "partiel (à vérifier)", "ECART": "différent",
              "NON_LU": "non lu sur la pièce", "MANQUANT_CSV": "non renseigné dans le CSV",
@@ -111,7 +111,10 @@ def check_actor(contract: str, actor: dict, names: list[str], aliases: dict[str,
     base = {"version": VERSION, "expectedName": actor.get("name") or "", "expectedId": actor.get("id") or ""}
     files = list(dict.fromkeys(l.scan.path.name for l in links))
     if not links:
-        return {**base, "status": "non vérifiable", "state": "missing", "nameStatus": "Non vérifiable",
+        lus = sum(1 for i in items if i.extraction is not None)
+        reason = ("aucun scan lu dans la campagne : lancez l'analyse des pièces" if not lus
+                  else f"aucun des {lus} scans lus ne correspond (nom, n° de pièce ou fichier)")
+        return {**base, "reason": reason, "status": "non vérifiable", "state": "missing", "nameStatus": "Non vérifiable",
                 "idStatus": "Non vérifiable", "nameMatched": False, "idMatched": False, "pieces": [],
                 "detail": "Pièce absente", "confidence": 0, "score": 0}
     res = evaluate_row(row, links, settings)
