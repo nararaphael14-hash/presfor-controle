@@ -425,6 +425,7 @@ function paintFicheLive() {   // met à jour badges / observations / contrôles 
   });
 }
 function render() {
+  try { if (S.campaign) localStorage.setItem("presfor.cid", S.campaign.id); } catch {}
   const rows = S.campaign?.contracts || [];
   const crumb = S.view === "history" ? "Campagnes" : S.view === "fiche" && cur() ? esc(cur().number) : "Vue d’ensemble";
   const job = S.job?.status === "running" ? S.job : null;
@@ -432,7 +433,7 @@ function render() {
     <div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
     <button class="nav ${S.view !== "history" ? "active" : ""}" data-act="nav" data-v="contracts">📋 Contrats</button>
     <button class="nav ${S.view === "history" ? "active" : ""}" data-act="nav" data-v="history">📁 Campagnes sauvegardées</button>
-    <div class="side-label">OUTILS</div><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/cf" target="_blank" rel="noopener">🗂 Contrôle pièce CF</a><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite" target="_blank" rel="noopener">🪪 Contrôle d’identité (lot)</a>
+    <div class="side-label">OUTILS</div><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/cf">🗂 Contrôle pièce CF</a><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
     <div class="side-note"><strong>Vos règles, appliquées</strong><p>Signature renseignée : présente.<br>Numéro de demande à renseigner pour chaque contrat.</p>
     ${S.health ? `<small>Moteur pièces : ${esc(S.health.backend_par_defaut)}</small>` : ""}</div></aside>
   <main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle des contrats › ${crumb}</div></header>
@@ -546,6 +547,16 @@ window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault()
 (async () => {
   render();
   try { S.health = await json("/api/health"); await refreshHistory(); } catch (e) { S.error = "Historique indisponible : " + e.message; }
+  // reprise : on rouvre la dernière campagne et on se rattache à l'analyse éventuellement encore en cours côté serveur
+  try {
+    let last = null; try { last = localStorage.getItem("presfor.cid"); } catch {}
+    const id = (S.history.find(h => h.id === last) || S.history[0] || {}).id;
+    if (id) {
+      S.campaign = await json(`/api/campaigns/${id}`);
+      const j = await json(`/api/campaigns/${id}/identity/status`);
+      if (j.status === "running") { S.job = j; S.applied = j.applied || 0; pollJob(); }
+    }
+  } catch {}
   render();
 })();
 </script>

@@ -234,11 +234,24 @@ def run_session(sdir: Path, settings: Settings, extractor, progress: Callable[[i
         progress(0, len(items), "Lecture des pièces")
     extract_all(items, extractor, settings, lambda d, t: progress and progress(d, t, "Lecture des pièces"))
     sc: dict[str, dict] = {}
-    for n, it in by_name.items():
-        m, g = measure(it.path)
-        sc[n] = {"metrics": m.to_dict(), "gray": g, "extraction": it.extraction, "sha": it.sha}
+    from concurrent.futures import ThreadPoolExecutor
+
+    done_q = 0
+
+    def _measure(item):
+        m, g = measure(item.path)
+        return item.filename, {"metrics": m.to_dict(), "gray": g, "extraction": item.extraction, "sha": item.sha}
+
+    with ThreadPoolExecutor(max_workers=max(1, settings.workers)) as pool:     # OpenCV libère le GIL
+        for n, val in pool.map(_measure, list(by_name.values())):
+            sc[n] = val
+            done_q += 1
+            if progress and done_q % 5 == 0:
+                progress(done_q, len(by_name), "Qualité des images (netteté, doublons)")
     results, used = [], set()
-    for app in exp["applicants"]:
+    for i, app in enumerate(exp["applicants"]):
+        if progress:
+            progress(i, len(exp["applicants"]), "Analyse des demandes (doublons, numéros)")
         names = [n for n in scans_for(app, files) if n in sc]
         used.update(names)
         results.append(analyse_request(app, names, sc))
@@ -345,7 +358,7 @@ def _sheet(wb: Workbook, title: str, heads: list[str], rows: list[list], first: 
             cell.alignment = Alignment(vertical="top", wrap_text=True)
 
 
-def invalid_workbook(data: dict) -> bytes:
+def invalid_workbook(data: dict, full: bool = False) -> bytes:
     R = data["results"]
     wb = Workbook()
     heads = ["Numéro de demande", "Sous-prefecture", "Village", "Demandeur", "Type de pièce", "N° pièce (table applicant)",
@@ -358,6 +371,15 @@ def invalid_workbook(data: dict) -> bytes:
             r["numero_csv"], r["numero_lu"], "\n".join(r["details"]), "\n".join(s["fichier"] for s in r["scans"])]
            for r in R if r["statut"] == "A_VERIFIER"]
     _sheet(wb, "À vérifier (n° non confirmé)", [*heads[:7], "Détail", "Fichiers"], ver)
+    if full:
+        ok = [[r["demande"], r["sous_prefecture"], r["village"], f"{r['nom']} {r['prenoms']}".strip(), r["type_piece"],
+               r["numero_csv"], r["numero_lu"], "\n".join(r["details"]), "\n".join(s["fichier"] for s in r["scans"])]
+              for r in R if r["statut"] == "VALIDE"]
+        _sheet(wb, "Validées", [*heads[:7], "Détail", "Fichiers"], ok)
+        allr = [[r["demande"], r["sous_prefecture"], r["village"], f"{r['nom']} {r['prenoms']}".strip(), r["type_piece"],
+                 r["numero_csv"], r["numero_lu"], {"VALIDE": "Validée", "INVALIDE": "Invalidée", "A_VERIFIER": "À vérifier"}[r["statut"]],
+                 "\n".join(r["motifs"]), "\n".join(s["fichier"] for s in r["scans"])] for r in R]
+        _sheet(wb, "Toutes les demandes", [*heads[:7], "Statut", "Motif(s)", "Fichiers"], allr)
     grp: dict[str, dict] = {}
     for o in data["orphans"]:
         g = grp.setdefault(o["demande"], {"o": o, "RECTO": [], "VERSO": [], "INCONNUE": [], "lus": []})

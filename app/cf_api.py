@@ -56,7 +56,7 @@ def list_sessions() -> list[dict]:
         if meta.is_file():
             m = json.loads(meta.read_text(encoding="utf-8"))
             r = _results(d)
-            out.append({**m, "summary": r["summary"] if r else None})
+            out.append({**m, "summary": r["summary"] if r else None, "running": (JOBS.get(d.name) or {}).get("status") == "running"})
     return sorted(out, key=lambda x: x.get("created", ""), reverse=True)
 
 
@@ -142,6 +142,15 @@ def export_invalid(sid: str) -> Response:
         raise HTTPException(409, "analyse non terminée")
     return Response(cf.invalid_workbook(r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": 'attachment; filename="Controle_piece_CF_invalidees.xlsx"'})
+
+
+@router.get("/{sid}/export/resultats.xlsx")
+def export_all(sid: str) -> Response:
+    r = _results(sdir(sid))
+    if not r:
+        raise HTTPException(409, "analyse non terminée")
+    return Response(cf.invalid_workbook(r, full=True), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="Controle_piece_CF_resultats.xlsx"'})
 
 
 @router.get("/{sid}/scan/{name}")

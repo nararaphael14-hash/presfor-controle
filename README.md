@@ -207,3 +207,8 @@ compatible S3 (Supabase Storage, Cloudflare R2, Backblaze B2) et restaurés au d
 
 Les fichiers modifiés partent toutes les 15 s et à l'arrêt ; les images d'un dossier sont rechargées au premier accès.
 État : `GET /api/storage`. Sans ces variables, rien ne change (disque local).
+
+## Éviter les redémarrages (offre gratuite)
+Render arrête l'instance gratuite après 15 min sans requête, et le disque est alors vidé. Le workflow
+`.github/workflows/keepalive.yml` appelle `/healthz` toutes les 5 min (GitHub Actions, gratuit) : l'instance reste éveillée
+(750 h gratuites/mois = un service 24 h/24). Les redéploiements vident encore le disque : activez la persistance S3 ci-dessus.

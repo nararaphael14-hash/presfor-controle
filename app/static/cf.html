@@ -137,14 +137,14 @@ function rows(){const q=S.search.toLowerCase();return (S.data?.results||[]).filt
 function render(){const D=S.data,sm=D?.summary||{},job=S.job?.status==="running"?S.job:null;const list=rows();const pages=Math.max(1,Math.ceil(list.length/S.size));if(S.page>=pages)S.page=pages-1;const sl=list.slice(S.page*S.size,(S.page+1)*S.size);
 const sel=S.sel&&D?D.results.find(r=>r.demande===S.sel):null;
 $("#app").innerHTML=`<div class="shell ${S.sidebar?"":"collapsed"}"><aside class="sidebar"><div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
-<a class="nav" style="text-decoration:none;display:block;padding:10px" href="/" target="_blank" rel="noopener">📋 Contrats</a><button class="nav active">🗂 Contrôle pièce CF</button><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite" target="_blank" rel="noopener">🪪 Contrôle d’identité (lot)</a>
+<a class="nav" style="text-decoration:none;display:block;padding:10px" href="/">📋 Contrats</a><button class="nav active">🗂 Contrôle pièce CF</button><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
 <div class="side-note"><strong>Base des pièces validées</strong><p>${S.valid.length} demande(s) stockée(s).<br>Seules les pièces valides y entrent.</p></div></aside>
 <main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle pièce CF</div></header><div class="content">
 <div class="heading"><div><span class="eyebrow">CERTIFICAT FONCIER</span><h1>Contrôle pièce CF</h1><p>Détecte les scans flous, illisibles, mal cadrés ou en double, et vérifie le numéro de pièce avec la table applicant.</p></div>
 <div class="actions"><div class="menu"><button data-act="menu">⬆ Importer l’export CF ▾</button><div class="pop"><button data-act="pick" data-t="any">⬆ Fichiers / ZIP</button><button data-act="pick" data-t="dir">📁 Dossier</button></div></div>
 <select id="backend" style="width:auto"><option value="auto" ${S.backend==="auto"?"selected":""}>Moteur : auto</option><option value="claude" ${S.backend==="claude"?"selected":""}>Claude (vision)</option><option value="tesseract" ${S.backend==="tesseract"?"selected":""}>Tesseract (local)</option></select>
 ${S.sid?`<button data-act="rerun" ${job?"disabled":""}>🔎 Relancer le contrôle</button>`:""}
-${D?`<button class="primary" data-act="xlsx">⬇ Excel des invalidées</button>`:""}<button data-act="zip" ${S.valid.length?"":"disabled"}>⬇ Base des pièces validées</button></div></div>
+${D?`<button class="primary" data-act="xlsx">⬇ Excel des invalidées</button><button data-act="xlsxall">⬇ Excel de tous les résultats</button>`:""}<button data-act="zip" ${S.valid.length?"":"disabled"}>⬇ Base des pièces validées</button></div></div>
 ${S.error?`<div class="banner error"><div>${esc(S.error)}</div><button data-act="clr-e">✕</button></div>`:""}${S.notice?`<div class="banner"><div>${esc(S.notice)}</div><button data-act="clr-n">✕</button></div>`:""}
 ${S.busy?`<div class="banner"><div>${esc(S.busy)}${S.progress!=null?`<div class="bar"><i style="width:${S.progress}%"></i></div>`:""}</div></div>`:""}
 ${job?`<div class="banner"><div>${esc(job.label||"Contrôle")} : ${job.done}/${job.total||"…"}<div class="bar"><i style="width:${job.total?100*job.done/job.total:3}%"></i></div></div></div>`:""}
@@ -165,11 +165,11 @@ document.addEventListener("click",async e=>{if(!e.target.closest(".menu"))docume
  if(a==="menu"){t.parentElement.classList.toggle("open");return}if(a==="pick"){document.querySelectorAll(".menu.open").forEach(m=>m.classList.remove("open"));$(t.dataset.t==="dir"?"#fileDir":"#fileAny").click();return}
  if(a==="side"){S.sidebar=!S.sidebar;render();return}if(a==="open"){S.sel=t.dataset.id;render();setTimeout(()=>document.querySelector(".thumbs")?.scrollIntoView({behavior:"smooth"}),50);return}
  if(a==="prev"){S.page--;render();return}if(a==="next"){S.page++;render();return}if(a==="clr-e"){S.error="";render();return}if(a==="clr-n"){S.notice="";render();return}
- if(a==="rerun"){await startRun();return}if(a==="xlsx"){await download(`/api/cf/${S.sid}/export/invalides.xlsx`,"Controle_piece_CF_invalidees.xlsx");return}
+ if(a==="rerun"){await startRun();return}if(a==="xlsxall"){await download(`/api/cf/${S.sid}/export/resultats.xlsx`,"Controle_piece_CF_resultats.xlsx");return}if(a==="xlsx"){await download(`/api/cf/${S.sid}/export/invalides.xlsx`,"Controle_piece_CF_invalidees.xlsx");return}
  if(a==="zip"){await download("/api/cf/valid/export.zip","Base_pieces_CF_validees.zip");return}});
 document.addEventListener("input",e=>{if(e.target.id==="search"){S.search=e.target.value;S.page=0;const p=e.target.selectionStart;render();const n=$("#search");n.focus();n.setSelectionRange(p,p)}});
 document.addEventListener("change",e=>{if(e.target.id==="filter"){S.filter=e.target.value;S.page=0;render()}else if(e.target.id==="backend")S.backend=e.target.value});
 for(const id of["#fileAny","#fileDir"])$(id).addEventListener("change",e=>{importFiles(e.target.files).then(()=>{e.target.value=""})});
-(async()=>{render();try{S.valid=await json("/api/cf/valid/list");const ss=await json("/api/cf");const last=ss.find(s=>s.summary);if(last){S.sid=last.id;S.data=await json(`/api/cf/${last.id}/results`)}}catch(e){S.error=e.message}render()})();
+(async()=>{render();try{S.valid=await json("/api/cf/valid/list");const ss=await json("/api/cf");const last=ss.find(s=>s.summary);const run_=ss.find(s=>s.running);if(last){S.sid=last.id;S.data=await json(`/api/cf/${last.id}/results`)}if(run_){S.sid=run_.id;S.job=await json(`/api/cf/${run_.id}/status`);poll()}}catch(e){S.error=e.message}render()})();
 addEventListener("beforeunload",e=>{if(S.busy){e.preventDefault();e.returnValue=""}});
 </script></body></html>

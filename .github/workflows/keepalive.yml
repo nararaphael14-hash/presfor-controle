@@ -1,0 +1,11 @@
+# Évite la mise en veille de l'offre gratuite Render (arrêt après 15 min sans requête => données locales perdues).
+name: keepalive
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --retry 3 --max-time 60 https://presfor-controle.onrender.com/healthz
