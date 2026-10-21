@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
+import re
 from typing import Any
 
-from PIL import Image
+from PIL import Image, ImageFilter, ImageOps
 from pydantic import ValidationError
 
 from ..images import to_jpeg_bytes
@@ -97,7 +99,11 @@ class ClaudeVisionExtractor:
 
     @property
     def cache_id(self) -> str:
-        return f"claude-{self.model}-v1"
+        return f"claude-{self.model}-v2p" if self.precision else f"claude-{self.model}-v1"
+
+    @property
+    def precision(self) -> bool:
+        return os.getenv("READ_PRECISION", "high").lower() != "normal"
 
     def _request(self, jpeg: bytes) -> dict[str, Any]:
         b64 = base64.standard_b64encode(jpeg).decode()
@@ -121,7 +127,7 @@ class ClaudeVisionExtractor:
                 return dict(block.input)
         raise ValueError("aucun appel d'outil dans la réponse")
 
-    def extract(self, img: Image.Image) -> Extraction:
+    def _read(self, img: Image.Image) -> Extraction:
         jpeg = to_jpeg_bytes(img, self.max_side)
         last_err: Exception | None = None
         for attempt in range(2):  # 1 nouvelle tentative si la réponse est invalide
@@ -140,3 +146,73 @@ class ClaudeVisionExtractor:
                 break
         return Extraction(lisible=False, type_piece="ILLISIBLE", backend=self.cache_id,
                           erreur=f"{type(last_err).__name__}: {last_err}")
+
+    # ------------------------------------------------------------------ lecture de précision
+    @staticmethod
+    def _zoom(img: Image.Image) -> Image.Image:
+        """Variante recadrée sur la zone du document, contraste et netteté renforcés."""
+        g = ImageOps.autocontrast(img.convert("L"), cutoff=1)
+        small = g.resize((max(1, g.width // 4), max(1, g.height // 4)))
+        bw = small.point(lambda v: 255 if v < 200 else 0)
+        box = bw.getbbox()
+        rgb = ImageOps.autocontrast(img.convert("RGB"), cutoff=1)
+        if box:
+            x0, y0, x1, y1 = (v * 4 for v in box)
+            m = 12
+            x0, y0 = max(0, x0 - m), max(0, y0 - m)
+            x1, y1 = min(img.width, x1 + m), min(img.height, y1 + m)
+            if (x1 - x0) * (y1 - y0) > 0.2 * img.width * img.height:
+                rgb = rgb.crop((x0, y0, x1, y1))
+        side = max(rgb.size)
+        if side < 1800:
+            k = 1800 / side
+            rgb = rgb.resize((int(rgb.width * k), int(rgb.height * k)), Image.LANCZOS)
+        return rgb.filter(ImageFilter.UnsharpMask(radius=2, percent=120, threshold=3))
+
+    @staticmethod
+    def _norm(v: str | None) -> str:
+        return re.sub(r"[^A-Z0-9]", "", (v or "").upper())
+
+    def _agree(self, a: Extraction, b: Extraction) -> bool:
+        return all(self._norm(getattr(a, f)) == self._norm(getattr(b, f))
+                   for f in ("nom", "prenoms", "numero_piece"))
+
+    def extract(self, img: Image.Image) -> Extraction:
+        a = self._read(img)
+        if not self.precision or a.erreur or not a.lisible or a.face == "VERSO":
+            return a
+        b = self._read(self._zoom(img))
+        if b.erreur or not b.lisible:
+            return a
+        if self._agree(a, b):  # deux lectures indépendantes concordent : confiance renforcée
+            for f in ("nom", "prenoms", "numero_piece"):
+                ca, cb = getattr(a.confiance, f), getattr(b.confiance, f)
+                if ca is not None and cb is not None:
+                    setattr(a.confiance, f, min(1.0, max(ca, cb)))
+            a.remarques = (a.remarques + " | double lecture concordante").strip(" |")
+            return a
+        g = ImageOps.autocontrast(img.convert("L"), cutoff=2).convert("RGB")
+        k = 1400 / max(g.size)
+        c = self._read(g.resize((int(g.width * k), int(g.height * k)), Image.LANCZOS))  # 3e lecture : arbitre
+        votes = {}
+        for f in ("nom", "prenoms", "numero_piece"):
+            vals = [(self._norm(getattr(x, f)), getattr(x, f)) for x in (a, b, c)]
+            cnt: dict[str, list] = {}
+            for n, raw in vals:
+                if n:
+                    cnt.setdefault(n, []).append(raw)
+            best = max(cnt.values(), key=len) if cnt else []
+            votes[f] = (best[0] if len(best) >= 2 else None, len(best))
+        out = a
+        diff = []
+        for f in ("nom", "prenoms", "numero_piece"):
+            val, n = votes[f]
+            if n >= 2:
+                setattr(out, f, val)
+                if self._norm(getattr(a, f)) != self._norm(getattr(b, f)):
+                    diff.append(f)
+            else:  # aucune majorité : on garde la lecture A mais confiance basse
+                setattr(out.confiance, f, min(getattr(out.confiance, f) or 0.4, 0.4))
+                diff.append(f + "?")
+        out.remarques = (out.remarques + " | lectures divergentes: " + ",".join(diff)).strip(" |")
+        return out
