@@ -34,6 +34,11 @@ DHASH_DUP = 5
 DHASH_ORB = 12         # l'appariement ORB seul est trompé par le décor (même table photographiée) : il faut aussi une mise en page proche
 
 
+def _gray(entry: dict):
+    """Image en gris rechargée À LA DEMANDE : en garder 190 en mémoire dépasse les 512 Mo de l'hébergement (arrêt OOM)."""
+    return measure(entry["path"])[1]
+
+
 def _has_id(ex) -> bool:
     return bool(ex and (ex.nom or ex.prenoms or ex.numero_piece))
 
@@ -140,7 +145,7 @@ def quality_motifs(m: dict) -> list[str]:
 
 
 def analyse_request(app: dict, names: list[str], sc: dict) -> dict:
-    """sc : nom -> {metrics, extraction(Extraction|None), sha, gray}. Retourne le résultat de la demande."""
+    """sc : nom -> {metrics, extraction(Extraction|None), sha, path}. Retourne le résultat de la demande."""
     motifs: list[str] = []
     detail: list[str] = []
     faces: dict[str, str] = {}
@@ -168,8 +173,8 @@ def analyse_request(app: dict, names: list[str], sc: dict) -> dict:
                 dh = hamming(sa["metrics"]["dhash"], sb["metrics"]["dhash"])
                 if dh <= DHASH_DUP:
                     why = "images quasi identiques"
-                elif (sa["gray"] is not None and sb["gray"] is not None and not _faces_differ(sa["extraction"], sb["extraction"])
-                      and dh <= DHASH_ORB and similar_views(sa["gray"], sb["gray"]) >= ORB_DUP):
+                elif (not _faces_differ(sa["extraction"], sb["extraction"]) and dh <= DHASH_ORB
+                      and similar_views(_gray(sa), _gray(sb)) >= ORB_DUP):
                     why = "même face photographiée deux fois"
             ea, eb = sa["extraction"], sb["extraction"]
             if not why and ea and eb and ea.face == eb.face == "RECTO" and (ea.nom or ea.numero_piece) and (eb.nom or eb.numero_piece):
@@ -240,7 +245,8 @@ def run_session(sdir: Path, settings: Settings, extractor, progress: Callable[[i
 
     def _measure(item):
         m, g = measure(item.path)
-        return item.filename, {"metrics": m.to_dict(), "gray": g, "extraction": item.extraction, "sha": item.sha}
+        del g
+        return item.filename, {"metrics": m.to_dict(), "path": item.path, "extraction": item.extraction, "sha": item.sha}
 
     with ThreadPoolExecutor(max_workers=max(1, settings.workers)) as pool:     # OpenCV libère le GIL
         for n, val in pool.map(_measure, list(by_name.values())):

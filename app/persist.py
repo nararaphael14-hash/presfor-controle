@@ -34,7 +34,8 @@ def _client():
         _state["client"] = boto3.client(
             "s3", endpoint_url=os.getenv("S3_ENDPOINT") or None, region_name=os.getenv("S3_REGION", "auto"),
             aws_access_key_id=os.environ["S3_ACCESS_KEY"], aws_secret_access_key=os.environ["S3_SECRET_KEY"],
-            config=Config(signature_version="s3v4", retries={"max_attempts": 4, "mode": "standard"},
+            config=Config(signature_version="s3v4", retries={"max_attempts": 3, "mode": "standard"},
+                          connect_timeout=8, read_timeout=40,
                           s3={"addressing_style": "path"}))
     return _state["client"]
 

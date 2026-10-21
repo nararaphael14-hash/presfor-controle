@@ -75,6 +75,8 @@ def measure(path: Path) -> tuple[Metrics, np.ndarray | None]:
 
 
 def similar_views(g1, g2, min_inliers: int = 35) -> int:
+    if g1 is None or g2 is None:
+        return 0
     """Nombre de correspondances ORB cohérentes (RANSAC) : ≥ min_inliers => même face photographiée deux fois."""
     orb = cv2.ORB_create(1500)
     k1, d1 = orb.detectAndCompute(g1, None)
