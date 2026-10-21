@@ -114,7 +114,8 @@ const transient=e=>/HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test
 async function api(u,o={}){const r=await fetch(u,o);if(!r.ok){let m="HTTP "+r.status;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(typeof m==="string"?m:JSON.stringify(m))}return r}
 const json=async(u,o)=>(await api(u,o)).json();
 const baseName=n=>String(n).replace(/\\/g,"/").split("/").pop();
-function post(url,fd,onProg){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open("POST",url);x.upload.onprogress=e=>e.lengthComputable&&onProg(e.loaded/e.total);
+function post(url,fd,onProg,tries=3){return postOnce(url,fd,onProg).catch(async e=>{if(tries>1&&/Connexion interrompue|HTTP 50[234]/.test(e.message)){await new Promise(r=>setTimeout(r,4000));return post(url,fd,onProg,tries-1)}throw e})}
+function postOnce(url,fd,onProg){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open("POST",url);x.upload.onprogress=e=>e.lengthComputable&&onProg(e.loaded/e.total);
  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch{}x.status<300?res(j):rej(new Error(typeof j.detail==="string"?j.detail:"HTTP "+x.status))};x.onerror=()=>rej(new Error("Connexion interrompue pendant l’envoi."));x.send(fd)})}
 async function expand(files){const out=[];for(const f of files){if(!/\.zip$/i.test(f.name)){out.push(f);continue}
  S.busy="Ouverture de "+f.name+"…";render();const z=await JSZip.loadAsync(f);const es=Object.values(z.files).filter(e=>!e.dir&&!/__MACOSX|(^|\/)\./.test(e.name));let i=0;

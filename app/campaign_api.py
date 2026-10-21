@@ -155,7 +155,7 @@ def _read_json(data: bytes, out: dict) -> None:
 
 
 @router.post("/{cid}/import")
-def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
+def import_files(cid: str, files: list[UploadFile] = File(...), light: str = Form("")) -> dict:
     c = _get(cid)
     st = store()
     out = {"contracts": [], "inputs": {}, "aliases": {}, "scans": 0, "inventory": []}
@@ -198,6 +198,9 @@ def import_files(cid: str, files: list[UploadFile] = File(...)) -> dict:
     c["contracts"] = list(merged.values())
     c["inputs"] = {**c.get("inputs", {}), **out["inputs"]}
     c["aliases"] = {**c.get("aliases", {}), **out["aliases"]}
+    if light:       # lot intermédiaire d'images : on stocke seulement ; rattachement et réponse complète au dernier lot
+        st.save(c, imported=True)
+        return {"imported": len(out["contracts"]), "scans": out["scans"]}
     c = _refresh(c, only_stale=False if out["scans"] and not out["contracts"] else True)
     st.save(c, imported=True)
     return {"imported": len(out["contracts"]), "scans": out["scans"], "campaign": _payload(c)}

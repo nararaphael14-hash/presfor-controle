@@ -220,7 +220,13 @@ async function expandZips(files) {      // dézippe dans le navigateur : des lot
   }
   return out;
 }
-function post(url, fd, onProg) {         // XHR : progression d'envoi réelle
+function post(url, fd, onProg, tries = 3) {         // XHR : progression d'envoi réelle, 3 essais (réveil / redémarrage du serveur)
+  return postOnce(url, fd, onProg).catch(async e => {
+    if (tries > 1 && /Connexion interrompue|HTTP 50[234]/.test(e.message)) { await new Promise(r => setTimeout(r, 4000)); return post(url, fd, onProg, tries - 1); }
+    throw e;
+  });
+}
+function postOnce(url, fd, onProg) {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
     x.open("POST", url);
@@ -251,12 +257,13 @@ async function importFiles(list) {
     for (const [i, batch] of batches.entries()) {
       const fd = new FormData();
       batch.forEach(f => fd.append("files", f, f.name));
+      if (i < batches.length - 1 && !batch.some(f => /\.(csv|json)$/i.test(f.name))) fd.append("light", "1");   // lots d'images intermédiaires : stockage seul
       const r = await post(`/api/campaigns/${S.campaign.id}/import`, fd, frac => {
         S.progress = 100 * (i + frac) / batches.length;
         S.busy = `Envoi des fichiers : lot ${i + 1}/${batches.length} (${Math.round(frac * 100)} %)`; render();
       });
-      contracts += r.imported; scans += r.scans; last = r.campaign;
-      if (last) { S.campaign = last; S.view = "contracts"; S.dirty = false; }   // les données apparaissent dès le premier lot
+      contracts += r.imported; scans += r.scans; if (r.campaign) last = r.campaign;
+      if (r.campaign) { S.campaign = last; S.view = "contracts"; S.dirty = false; }   // les données apparaissent dès le premier lot
     }
     if (last) { S.campaign = last; S.view = "contracts"; S.sel = null; S.page = 0; S.dirty = false; }
     await refreshHistory();
