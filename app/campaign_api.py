@@ -20,7 +20,7 @@ from .config import get_settings
 from .contracts import evaluate, from_snapshot, parse_csv
 from .csv_loader import decode
 from .extractors import get_extractor
-from .identity_check import apply_identity, inventory_aliases
+from .identity_check import apply_identity, inventory_aliases, new_verified, skippable_scans
 from .images import SUPPORTED_EXT, load_page, to_jpeg_bytes
 from .pipeline import collect_scans, extract_all
 
@@ -265,11 +265,16 @@ def _ident_once(cid: str, backend: str, job: dict) -> None:
     try:
         st = store()
         extractor = get_extractor(s, backend)
-        files = [st.scans_dir(cid) / n for n in st.scan_names(cid)]
+        verified = st.load_verified()
+        all_files = [st.scans_dir(cid) / n for n in st.scan_names(cid)]
+        c0 = st.load(cid)
+        skip = skippable_scans(c0, [p.name for p in all_files], verified) if c0 else set()
+        job["skipped"] = len(skip)
+        files = [p for p in all_files if p.name not in skip]
         scans = collect_scans(files)
         job["total"] = len(scans)
         ocr = st.load_ocr(cid)
-        names = {p.name for p in files}
+        names = {p.name for p in all_files}
         base = 0
         STEP = 40          # résultats appliqués par paquets : les données restent consultables pendant l'analyse
         for i in range(0, len(scans), STEP):
@@ -287,9 +292,17 @@ def _ident_once(cid: str, backend: str, job: dict) -> None:
                 c = st.load(cid)
                 if c is None:
                     return
-                c = apply_identity(c, ocr, st.scans_dir(cid), st.scan_names(cid), s, only_stale=False)
+                c = apply_identity(c, ocr, st.scans_dir(cid), st.scan_names(cid), s, only_stale=False, verified=verified)
                 st.save(c)
+            st.remember_verified(new_verified(c))
+            verified = st.load_verified()
             job["applied"] = job.get("applied", 0) + 1
+        with st.lock:  # passage final (couvre aussi le cas où tous les scans sont déjà connus en mémoire)
+            c = st.load(cid)
+            if c is not None:
+                c = apply_identity(c, ocr, st.scans_dir(cid), st.scan_names(cid), s, only_stale=False, verified=verified)
+                st.save(c)
+                st.remember_verified(new_verified(c))
         if not job.get("rerun"):
             job["status"] = "done"
     except Exception as e:  # noqa: BLE001

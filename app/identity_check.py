@@ -16,6 +16,7 @@ ROLE_CODES = {"Propriétaire": "PROP", "Bénéficiaire": "BEN", "Témoin propri�
               "Témoin bénéficiaire": "TB", "Président CVGFR": "PCVGFR"}
 _CODE = re.compile(r"CT-\d{3}-\d{3}-\d{6}-\d{2}-[a-z]+", re.I)
 VERSION = 4
+MEMORY_STATE = "memory"
 
 STATUS_FR = {"PROCHE": "proche (à vérifier)", "PARTIEL": "partiel (à vérifier)", "ECART": "différent",
              "NON_LU": "non lu sur la pièce", "MANQUANT_CSV": "non renseigné dans le CSV",
@@ -95,8 +96,17 @@ def _detail(res) -> str:
     return " ; ".join([*parts, *res.flags]) or "; ".join(res.reasons)
 
 
+def files_of(links) -> list[str]:
+    return list(dict.fromkeys(l.scan.path.name for l in links))
+
+
+def verified_key(actor: dict) -> str:
+    n, i = norm(actor.get("name")), norm(actor.get("id"))
+    return f"{n}|{i}" if n and len(i) >= 5 else ""
+
+
 def check_actor(contract: str, actor: dict, names: list[str], aliases: dict[str, str], items: list[ScanItem],
-                settings: Settings) -> dict:
+                settings: Settings, verified: dict | None = None) -> dict:
     by_file: dict[str, list[ScanItem]] = {}
     for it in items:
         by_file.setdefault(it.path.name, []).append(it)
@@ -108,6 +118,14 @@ def check_actor(contract: str, actor: dict, names: list[str], aliases: dict[str,
     if not links:
         links = [lk for s in items if (lk := link_scan(row, s, settings))]
         by_content = bool(links)
+    key = verified_key(actor)
+    if verified and links and key in verified and all(l.scan.extraction is None for l in links):
+        # même nom + même n° de pièce déjà contrôlés et conformes : on ne relit pas
+        return {"version": VERSION, "expectedName": actor.get("name") or "", "expectedId": actor.get("id") or "",
+                "status": "validé", "state": MEMORY_STATE, "nameStatus": "RAS", "idStatus": "RAS",
+                "nameMatched": True, "idMatched": True, "pieces": files_of(links),
+                "detail": "Identité déjà validée lors d'une analyse précédente (mémoire)", "confidence": 100,
+                "score": 100, "birthMismatch": False, "documentTypes": []}
     base = {"version": VERSION, "expectedName": actor.get("name") or "", "expectedId": actor.get("id") or ""}
     files = list(dict.fromkeys(l.scan.path.name for l in links))
     if not links:
@@ -146,7 +164,7 @@ def check_actor(contract: str, actor: dict, names: list[str], aliases: dict[str,
         out.update(status="non conforme", state="analysed", detail=d + suffix)
     elif res.verdict == PIECE_INUTILISABLE:
         out.update(status="non vérifiable", state="error" if any("erreur" in r for r in res.reasons) else "insufficient",
-                   detail="; ".join(res.reasons) + suffix)
+                   illegible=True, detail="Pièce illisible — " + "; ".join(res.reasons) + suffix)
     else:
         amb = any("numéros différents" in f for f in res.flags)
         out.update(status="non vérifiable", state="ambiguous" if amb else "insufficient",
@@ -155,7 +173,7 @@ def check_actor(contract: str, actor: dict, names: list[str], aliases: dict[str,
 
 
 def apply_identity(campaign: dict, ocr: dict, scans_dir: Path, names: list[str], settings: Settings,
-                   only_stale: bool = False) -> dict:
+                   only_stale: bool = False, verified: dict | None = None) -> dict:
     """Recalcule `automatic` de chaque acteur à partir des extractions déjà faites (aucun appel OCR/API)."""
     items = items_from_ocr(ocr, scans_dir)
     aliases = campaign.get("aliases", {})
@@ -170,6 +188,32 @@ def apply_identity(campaign: dict, ocr: dict, scans_dir: Path, names: list[str],
             if only_stale and fresh:
                 actors.append(a)
                 continue
-            actors.append({**a, "automatic": check_actor(c["number"], a, all_names, aliases, items, settings)})
+            actors.append({**a, "automatic": check_actor(c["number"], a, all_names, aliases, items, settings, verified)})
         contracts.append(evaluate({**c, "actors": actors}))
     return {**campaign, "contracts": contracts}
+
+
+def new_verified(campaign: dict) -> dict:
+    """Identités validées par une lecture réelle (pas par la mémoire) : à mémoriser pour les analyses suivantes."""
+    stamp = __import__("time").strftime("%Y-%m-%dT%H:%M:%S")
+    out = {}
+    for c in campaign["contracts"]:
+        for a in c["actors"]:
+            chk = a.get("automatic") or {}
+            if chk.get("status") == "validé" and chk.get("state") == "analysed" and (k := verified_key(a)):
+                out[k] = {"name": a.get("name"), "id": a.get("id"), "at": stamp}
+    return out
+
+
+def skippable_scans(campaign: dict, names: list[str], verified: dict) -> set[str]:
+    """Scans dont TOUS les acteurs rattachés par nom de fichier sont déjà validés en mémoire : inutile de les relire."""
+    if not verified:
+        return set()
+    aliases = campaign.get("aliases", {})
+    users: dict[str, list[bool]] = {}
+    for c in campaign["contracts"]:
+        for a in c["actors"]:
+            known = verified_key(a) in verified
+            for f in actor_candidates(a, c["number"], names, aliases):
+                users.setdefault(f, []).append(known)
+    return {f for f, v in users.items() if v and all(v)}

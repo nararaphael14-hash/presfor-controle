@@ -141,6 +141,25 @@ class Store:
         except Exception:  # noqa: BLE001
             return {}
 
+    @property
+    def _verified_path(self) -> Path:
+        return self.root.parent / "verified_identities.json"
+
+    def load_verified(self) -> dict:
+        """Mémoire des identités déjà validées (clé = nom normalisé | n° de pièce normalisé), partagée entre campagnes."""
+        try:
+            return json.loads(self._verified_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def remember_verified(self, new: dict) -> None:
+        if not new:
+            return
+        with self.lock:
+            cur = self.load_verified()
+            cur.update(new)
+            self._verified_path.write_text(json.dumps(cur, ensure_ascii=False), encoding="utf-8")
+
     def save_ocr(self, cid: str, ocr: dict) -> None:
         with self.lock:
             (self.dir(cid) / "ocr.json").write_text(json.dumps(ocr, ensure_ascii=False), encoding="utf-8")

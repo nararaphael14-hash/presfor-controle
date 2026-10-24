@@ -94,7 +94,7 @@ class ClaudeVisionExtractor:
         if client is None:
             import anthropic
 
-            client = anthropic.Anthropic(api_key=api_key, max_retries=4, timeout=90.0)
+            client = anthropic.Anthropic(api_key=api_key, max_retries=2, timeout=60.0)
         self.client = client
 
     @property

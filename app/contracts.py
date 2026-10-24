@@ -340,17 +340,23 @@ def ocr_reading(c: dict) -> str:
     lines: list[str] = []
     for a in c["actors"]:
         chk = _current(a)
-        if not chk or not chk.get("pieces"):
+        if not chk:
+            continue
+        if not chk.get("pieces"):
+            lines.append(f"{a['role']} — pièce manquante" if mandatory_identity(a["role"]) else f"{a['role']} — pièce absente")
             continue
         if chk.get("status") == "validé":
             lines.append(f"{a['role']} — RAS")
+            continue
+        if chk.get("illegible"):
+            lines.append(f"{a['role']} — pièce illisible (à refaire)")
             continue
         lu = " ".join(x for x in (chk.get("observedName"), ("n° " + chk["observedId"]) if chk.get("observedId") else "") if x)
         lines.append(f"{a['role']} — lu : {lu or 'rien de lisible'}"
                      + (f" ({chk['detail']})" if chk.get("detail") else ""))
     if not lines:
         return "Non lu"
-    return "RAS" if all(l.endswith("— RAS") for l in lines) else "\n".join(lines)
+    return "RAS" if all(l.endswith("— RAS") or l.endswith("pièce absente") for l in lines) else "\n".join(lines)
 
 
 def identity_remarks(c: dict) -> str:
