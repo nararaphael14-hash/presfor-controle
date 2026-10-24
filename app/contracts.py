@@ -23,7 +23,7 @@ IDENTITY_VERSION = 4
 SURFACE_KEYS = ["surface", "superficie", "Superficie", "SUPERFICIE", "Surface", "SURFACE", "area", "terrainSurface",
                 "surfaceTerrain"]
 COLUMNS = ["Numéro de contrat", "Fichier source", "Type", "Village", "Propriétaire", "Bénéficiaire",
-           "Observations identité et CNI", "Observations signatures", "Durée du contrat", "Observations pourcentages",
+           "Observations identité et CNI", "Lecture OCR", "Observations signatures", "Durée du contrat", "Observations pourcentages",
            "Num_demande", "Superficie", "Autre Observations"]
 
 _NULLISH = re.compile(r"^(null|none|nan|non renseigné)$", re.I)
@@ -335,6 +335,24 @@ def optional_identity_info(a: dict) -> list[str]:
     return ["Contrôle de la pièce en attente (non bloquant)" if a.get("pieces") else "Pièce absente (non bloquant)"]
 
 
+def ocr_reading(c: dict) -> str:
+    """Résultat de lecture des pièces (OCR / vision) : RAS si toutes les pièces lues sont conformes."""
+    lines: list[str] = []
+    for a in c["actors"]:
+        chk = _current(a)
+        if not chk or not chk.get("pieces"):
+            continue
+        if chk.get("status") == "validé":
+            lines.append(f"{a['role']} — RAS")
+            continue
+        lu = " ".join(x for x in (chk.get("observedName"), ("n° " + chk["observedId"]) if chk.get("observedId") else "") if x)
+        lines.append(f"{a['role']} — lu : {lu or 'rien de lisible'}"
+                     + (f" ({chk['detail']})" if chk.get("detail") else ""))
+    if not lines:
+        return "Non lu"
+    return "RAS" if all(l.endswith("— RAS") for l in lines) else "\n".join(lines)
+
+
 def identity_remarks(c: dict) -> str:
     lines = [f"{a['role']} — {a.get('name') or 'Nom non renseigné'} : {i}"
              for a in c["actors"] for i in [*actor_identity_issues(a), *optional_identity_info(a)]]
@@ -439,7 +457,7 @@ def export_row(c: dict) -> list[str]:
         return next((a.get("name") for a in c["actors"] if a["role"] == role), "") or ""
     extra = [*required_field_issues(c), *([clean(c.get("manual"))] if clean(c.get("manual")) else [])]
     return [c["number"], c["source"], c.get("type", ""), c.get("village", ""), actor("Propriétaire"), actor("Bénéficiaire"),
-            identity_remarks(c), unsigned(c), duration_status(c), percentage_status(c),
+            identity_remarks(c), ocr_reading(c), unsigned(c), duration_status(c), percentage_status(c),
             "RAS" if clean(c.get("request")) else "Numero de demande à preciser", surface_status(c),
             "\n".join(extra) or "RAS"]
 

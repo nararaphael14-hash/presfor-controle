@@ -108,7 +108,7 @@ pre{background:#f1f5f4;padding:8px;border-radius:8px;overflow:auto;max-height:22
 "use strict";
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const S={sid:null,data:null,sessions:[],valid:[],filter:"INVALIDE",search:"",sel:null,busy:"",progress:null,error:"",notice:"",backend:"auto",job:null,sidebar:true,page:0,size:20,health:null};
+const S={sid:null,data:null,sessions:[],valid:[],filter:"INVALIDE",search:"",sel:null,busy:"",progress:null,error:"",notice:"",backend:"claude",job:null,sidebar:true,page:0,size:20,health:null};
 let pollT=null,pollFails=0;
 const transient=e=>/HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test(e.message||"");
 async function api(u,o={}){const r=await fetch(u,o);if(!r.ok){let m="HTTP "+r.status;try{const j=await r.json();m=j.detail||m}catch{}throw new Error(typeof m==="string"?m:JSON.stringify(m))}return r}

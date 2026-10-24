@@ -119,7 +119,7 @@ const norm = v => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").repla
 const MANDATORY = ["Propriétaire", "Bénéficiaire"];
 
 const S = {view:"contracts", campaign:null, history:[], sel:null, piece:"", page:0, pageSize:20, search:"", status:"Tous",
-           busy:"", progress:null, notice:"", error:"", dirty:false, sidebar:true, backend:"auto", health:null, job:null, rot:0, zoom:false,
+           busy:"", progress:null, notice:"", error:"", dirty:false, sidebar:true, backend:"claude", health:null, job:null, rot:0, zoom:false,
            attach:null, applied:0};
 let evalTimer = null, pollTimer = null, pollFails = 0;
 const transient = e => /HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test(e.message || "");

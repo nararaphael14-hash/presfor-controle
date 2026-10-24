@@ -57,7 +57,7 @@ def test_parse_et_regles():
 
 def test_export_row_13_colonnes():
     r = export_row(_c()["CT-2"])
-    assert len(COLUMNS) == len(r) == 13 and r[10] == "Numero de demande à preciser" and r[11] == "Superficie non rensegnée"
+    assert len(COLUMNS) == len(r) == 14 and r[11] == "Numero de demande à preciser" and r[12] == "Superficie non rensegnée"
     assert unsigned(_c()["CT-1"]) == "RAS" and "Bénéficiaire" in unsigned(_c()["CT-2"])
 
 
@@ -66,11 +66,11 @@ def test_pourcentages_et_duree():
     assert any("Partage incohérent" in o["text"] for o in evaluate(base)["observations"])
     ok = evaluate({**base, "beneficiaryShare": "40"})
     assert not any(o["group"] == "Pourcentages" for o in ok["observations"])
-    assert export_row({**base, "beneficiaryShare": "40"})[9] == "RAS"
-    assert export_row(base)[9] == "Pourcentage superieur à 100%"
-    assert export_row({**base, "duration": "0"})[8] == "Durée nulle"
-    assert export_row({**base, "duration": "120"})[8] == "Durée invalide, sup à 99 ans"
-    assert export_row({**base, "duration": "24", "raw": {"durationUnit": "mois"}})[8] == "24 mois"
+    assert export_row({**base, "beneficiaryShare": "40"})[10] == "RAS"
+    assert export_row(base)[10] == "Pourcentage superieur à 100%"
+    assert export_row({**base, "duration": "0"})[9] == "Durée nulle"
+    assert export_row({**base, "duration": "120"})[9] == "Durée invalide, sup à 99 ans"
+    assert export_row({**base, "duration": "24", "raw": {"durationUnit": "mois"}})[9] == "24 mois"
 
 
 def test_champs_obligatoires_inutilisables():
@@ -84,7 +84,7 @@ def test_excel_remarques(tmp_path):
     name, data, mime, n = export_remarks(rows)
     assert name == "Rque_contrat_src.xlsx" and n == 2 and data[:2] == b"PK"
     ws = load_workbook(io.BytesIO(data)).worksheets[0]
-    assert ws.max_column == 13 and ws["K1"].value == "Num_demande" and ws["L1"].value == "Superficie"
+    assert ws.max_column == 14 and ws["F1"].value == "Bénéficiaire" and ws["H1"].value == "Lecture OCR" and ws["L1"].value == "Num_demande" and ws["M1"].value == "Superficie"
     # deux sources -> ZIP avec Global ; noms nettoyés, collisions numérotées
     a = [{**rows[0], "source": "ALL_TABLES_EXPORT_EMILIENNE.csv"}, {**rows[1], "source": "EMILIENNE.csv"}]
     assert list(output_names(a).values()) == ["Rque_contrat_EMILIENNE.xlsx", "Rque_contrat_EMILIENNE_2.xlsx"]
@@ -96,7 +96,7 @@ def test_excel_remarques(tmp_path):
 def test_excel_pas_de_formule():
     c = {**_c()["CT-1"], "manual": "=1+1"}
     ws = load_workbook(io.BytesIO(make_workbook([evaluate(c)]))).worksheets[0]
-    assert ws["M2"].data_type == "s" and "=1+1" in ws["M2"].value
+    assert ws["N2"].data_type == "s" and "=1+1" in ws["N2"].value
 
 
 def test_scans_et_inventaire():
