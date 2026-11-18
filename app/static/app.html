@@ -183,14 +183,31 @@ async function saveLocalNow() {   // saisie manuelle toujours conservée localem
   const prev = await LB.get(c.id);
   await LB.put({id: c.id, title: c.title, at: Date.now(), data: {campaign: c, ocr: prev?.data?.ocr || {}}});
 }
-async function cacheImages(cid, names) {
-  const have = new Set([...LB.urls.keys()]);
-  const todo = names.filter(n => !have.has(cid + "|" + n)); S.cache = {done: 0, total: todo.length}; render();
-  for (const n of todo) {
-    try { const r = await fetch(`/api/campaigns/${cid}/scans/${encodeURIComponent(n)}?size=1400`); if (r.ok) await LB.putImg(cid, n, await r.blob()); } catch {}
-    S.cache.done++; if (S.cache.done % 10 === 0) render();
-  }
-  S.notice = `Pièces enregistrées en local : ${todo.length ? todo.length + " nouvelle(s)" : "déjà à jour"}.`; S.cache = null; render();
+const idle = () => new Promise(r => setTimeout(r, 400));
+async function cacheImages(cid, names, quiet = false) {
+  if (S.cache) return;
+  const todo = names.filter(n => !LB.urls.has(cid + "|" + n)); S.cache = {done: 0, total: todo.length, quiet}; if (!quiet) render();
+  let i = 0;
+  const worker = async () => {
+    while (i < todo.length) {
+      while (S.busy || S.job) await new Promise(r => setTimeout(r, 3000));   // l'import / l'analyse restent prioritaires
+      if (!S.campaign || S.campaign.id !== cid || S.localMode) return;
+      const n = todo[i++];
+      try { const r = await fetch(`/api/campaigns/${cid}/scans/${encodeURIComponent(n)}?size=1400`);
+            if (r.ok) await LB.putImg(cid, n, await r.blob()); else if (r.status === 429) { i--; await new Promise(r => setTimeout(r, 8000)); } } catch { await new Promise(r => setTimeout(r, 3000)); }
+      S.cache.done++; if (S.cache.done % 20 === 0) { const el = $("#cachepct"); if (el) el.textContent = `${S.cache.done} / ${S.cache.total}`; }
+      await idle();
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  const done = S.cache.done; S.cache = null;
+  if (!quiet || done) S.notice = `Pièces enregistrées en local : ${done} nouvelle(s).`;
+  render();
+}
+const autoCached = new Set();
+function autoCache() {   // copie locale automatique et discrète des pièces de la campagne ouverte
+  const c = S.campaign; if (!c || S.localMode || S.busy || S.job || S.cache || autoCached.has(c.id) || !(c.scanNames || []).length) return;
+  autoCached.add(c.id); setTimeout(() => cacheImages(c.id, c.scanNames, true), 1500);
 }
 let mirrorTimer;
 let mirrorSig = "", mirrorAt = 0;
@@ -417,7 +434,7 @@ function pollJob() {
         const keep = {sel:S.sel, piece:S.piece, view:S.view};
         applyFresh(await json(`/api/campaigns/${c.id}`));
         Object.assign(S, keep);
-        S.notice = "Contrôle des pièces terminé.";
+        S.notice = "Contrôle des pièces terminé."; autoCached.delete(S.campaign.id);
       } else if (S.job.status === "error") S.error = "Contrôle des pièces : " + S.job.error;
       S.job = null; render();
     } catch (e) {
@@ -469,7 +486,7 @@ function renderContracts() {
     <div><span>Signatures absentes</span><strong>${unsigned}</strong><small>Nom, contact et qualité disponibles</small></div>
     <div><span>Pièces validées</span><strong>${ctl}</strong><small>${S.campaign?.scanNames.length || 0} scans · ${S.campaign?.ocrCount || 0} lus</small></div></div>
     ${S.campaign ? `<div class="campaign-bar"><input id="title" aria-label="Nom de la campagne" value="${esc(S.campaign.title)}">
-      <span>Dernier chargement : ${dateLabel(S.campaign.loadedAt)}<br>${S.campaign.updated ? "Dernière sauvegarde : " + dateLabel(S.campaign.updated) : "Non enregistrée"}${S.dirty ? " · <b>modifications non enregistrées</b>" : ""}</span>
+      <span>Dernier chargement : ${dateLabel(S.campaign.loadedAt)}<br>${S.campaign.updated ? "Dernière sauvegarde : " + dateLabel(S.campaign.updated) : "Non enregistrée"}${S.dirty ? " · <b>modifications non enregistrées</b>" : ""}${S.cache ? ` · 💾 pièces en local : <span id="cachepct">${S.cache.done} / ${S.cache.total}</span>` : ""}</span>
       <button data-act="save">💾 Enregistrer</button></div>` : ""}
     ${rows.length ? `<div class="panel"><div class="filters"><input id="search" placeholder="Rechercher un contrat, un village, un nom…" value="${esc(S.search)}">
       <select id="status">${["Tous", "RAS", "REAMRQUE"].map(s => `<option ${s === S.status ? "selected" : ""}>${s}</option>`).join("")}</select></div>
@@ -570,6 +587,7 @@ function paintFicheLive() {   // met à jour badges / observations / contrôles 
 }
 function render() {
   if (S.campaign && !S.dirty) mirrorLocal();
+  autoCache();
   try { if (S.campaign) localStorage.setItem("presfor.cid", S.campaign.id); } catch {}
   const rows = S.campaign?.contracts || [];
   const crumb = S.view === "history" ? "Campagnes" : S.view === "fiche" && cur() ? esc(cur().number) : "Vue d’ensemble";
