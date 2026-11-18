@@ -251,6 +251,10 @@ def import_files(cid: str, files: list[UploadFile] = File(...), light: str = For
 
 
 # ------------------------------------------------------------------ scans
+# un seul redimensionnement à la fois : l'hébergement gratuit n'a que 512 Mo
+_PREVIEW = threading.BoundedSemaphore(1)
+
+
 @router.get("/{cid}/scans/{name:path}")
 def get_scan(cid: str, name: str, page: int = 0, thumb: int = 0, size: int = 0) -> Response:
     _get(cid)
@@ -260,13 +264,15 @@ def get_scan(cid: str, name: str, page: int = 0, thumb: int = 0, size: int = 0) 
         raise HTTPException(404, "scan introuvable")
     if size:    # version réduite pour la copie locale du navigateur (lisible, ~200 Ko)
         try:
-            jpeg = to_jpeg_bytes(load_page(p, page, dpi=120), max_side=max(600, min(size, 2000)), quality=75)
+            with _PREVIEW:
+                jpeg = to_jpeg_bytes(load_page(p, page, dpi=100, max_side=2 * size), max_side=max(600, min(size, 2000)), quality=75)
         except Exception as e:  # noqa: BLE001
             raise HTTPException(422, f"lecture impossible : {e}") from e
         return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
     if thumb:   # miniature légère : évite de charger N photos pleine taille (saturation / HTTP 429 / mémoire)
         try:
-            jpeg = to_jpeg_bytes(load_page(p, page, dpi=80), max_side=360, quality=70)
+            with _PREVIEW:
+                jpeg = to_jpeg_bytes(load_page(p, page, dpi=60, max_side=720), max_side=360, quality=70)
         except Exception as e:  # noqa: BLE001
             raise HTTPException(422, f"lecture impossible : {e}") from e
         return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})

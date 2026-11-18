@@ -77,7 +77,7 @@ def _extract_scan(scan: ScanItem, extractor, cache_dir: Path) -> Extraction:
         except Exception:
             cf.unlink(missing_ok=True)
     try:
-        ex = extractor.extract(load_page(scan.path, scan.page_index))
+        ex = extractor.extract(load_page(scan.path, scan.page_index, max_side=2400))
     except Exception as e:
         return Extraction(lisible=False, type_piece="ILLISIBLE", backend=extractor.cache_id,
                           erreur=f"{type(e).__name__}: {e}")

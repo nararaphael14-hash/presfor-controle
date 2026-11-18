@@ -41,14 +41,18 @@ def count_pages(path: Path, max_pdf_pages: int = 4) -> int:
     return 1
 
 
-def load_page(path: Path, index: int = 0, dpi: int = 200) -> Image.Image:
+def load_page(path: Path, index: int = 0, dpi: int = 200, max_side: int = 0) -> Image.Image:
+    """max_side : décodage JPEG réduit (draft) — une photo de téléphone de 12 Mpx n'occupe plus ~50 Mo en mémoire."""
     if path.suffix.lower() in PDF_EXT:
         import fitz
 
         with fitz.open(path) as doc:
             pix = doc[index].get_pixmap(dpi=dpi, alpha=False)
             return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-    img = ImageOps.exif_transpose(Image.open(path))
+    img = Image.open(path)
+    if max_side and img.format == "JPEG":
+        img.draft("RGB", (max_side, max_side))
+    img = ImageOps.exif_transpose(img)
     return img.convert("RGB")
 
 

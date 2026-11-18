@@ -193,13 +193,16 @@ async function cacheImages(cid, names, quiet = false) {
       while (S.busy || S.job) await new Promise(r => setTimeout(r, 3000));   // l'import / l'analyse restent prioritaires
       if (!S.campaign || S.campaign.id !== cid || S.localMode) return;
       const n = todo[i++];
-      try { const r = await fetch(`/api/campaigns/${cid}/scans/${encodeURIComponent(n)}?size=1400`);
-            if (r.ok) await LB.putImg(cid, n, await r.blob()); else if (r.status === 429) { i--; await new Promise(r => setTimeout(r, 8000)); } } catch { await new Promise(r => setTimeout(r, 3000)); }
+      try {
+        const r = await fetch(`/api/campaigns/${cid}/scans/${encodeURIComponent(n)}?size=1400`);
+        if (r.ok) await LB.putImg(cid, n, await r.blob());
+        else if (r.status !== 404 && r.status !== 422) { i--; await new Promise(ok => setTimeout(ok, 15000)); }   // 429 / 502 : le serveur souffle, on patiente
+      } catch { i--; await new Promise(ok => setTimeout(ok, 15000)); }
       S.cache.done++; if (S.cache.done % 20 === 0) { const el = $("#cachepct"); if (el) el.textContent = `${S.cache.done} / ${S.cache.total}`; }
-      await idle();
+      await new Promise(r => setTimeout(r, 900));
     }
   };
-  await Promise.all([worker(), worker()]);
+  await worker();
   const done = S.cache.done; S.cache = null;
   if (!quiet || done) S.notice = `Pièces enregistrées en local : ${done} nouvelle(s).`;
   render();
