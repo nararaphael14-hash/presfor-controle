@@ -133,13 +133,16 @@ const S = {view:"contracts", campaign:null, history:[], sel:null, piece:"", page
            busy:"", progress:null, notice:"", error:"", dirty:false, sidebar:true, backend:"claude", health:null, job:null, rot:0, zoom:false,
            attach:null, applied:0};
 let evalTimer = null, pollTimer = null, pollFails = 0;
-const transient = e => /HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test(e.message || "");
+const transient = e => /HTTP 429|HTTP 50[234]|Failed to fetch|NetworkError|Load failed/i.test(e.message || "");
 const friendly = e => /HTTP 404/.test(e.message || "") || /introuvable/i.test(e.message || "") ? "Campagne introuvable sur le serveur : l’hébergement gratuit s’est redémarré (les données ne sont pas conservées sans disque). Réimportez vos fichiers." : transient(e) ? "Le serveur ne répond pas (redémarrage en cours). Patientez une minute puis relancez « Contrôler les pièces »." : e.message;
 addEventListener("beforeunload", e => { if (S.busy) { e.preventDefault(); e.returnValue = ""; } });   // un envoi en cours ne doit pas être coupé par erreur
 
 // ---------------------------------------------------------------- API
-async function api(url, opts = {}) {
+async function api(url, opts = {}, n = 0) {
   const r = await fetch(url, opts);
+  if (r.status === 429 && n < 4 && (!opts.method || opts.method === "GET")) {   // limite de requêtes : on patiente puis on réessaie
+    await new Promise(ok => setTimeout(ok, (+r.headers.get("Retry-After") || 2 * (n + 1)) * 1000)); return api(url, opts, n + 1);
+  }
   if (!r.ok) {
     let msg = `HTTP ${r.status}`;
     try { const j = await r.json(); msg = j.detail || msg; } catch {}
@@ -190,10 +193,15 @@ async function cacheImages(cid, names) {
   S.notice = `Pièces enregistrées en local : ${todo.length ? todo.length + " nouvelle(s)" : "déjà à jour"}.`; S.cache = null; render();
 }
 let mirrorTimer;
+let mirrorSig = "", mirrorAt = 0;
 function mirrorLocal() {
+  const c0 = S.campaign; if (!c0 || S.dirty || S.localMode || S.busy || S.job) return;   // jamais pendant un import ou une analyse : on ne surcharge pas le serveur
+  const sig = [c0.id, c0.updated, c0.contracts.length, c0.ocrCount, (c0.scanNames || []).length].join("|");
+  if (sig === mirrorSig || Date.now() - mirrorAt < 60000) return;                        // inchangé ou copie récente
   clearTimeout(mirrorTimer);
   mirrorTimer = setTimeout(async () => {
-    const c = S.campaign; if (!c || S.dirty || S.localMode) return;
+    const c = S.campaign; if (!c || S.dirty || S.localMode || S.busy || S.job) return;
+    mirrorSig = sig; mirrorAt = Date.now();
     try { const data = await json(`/api/campaigns/${c.id}/backup`); await LB.put({id: c.id, title: c.title, at: Date.now(), data}); } catch {}
   }, 4000);
 }
@@ -285,9 +293,15 @@ async function expandZips(files) {      // dézippe dans le navigateur : des lot
   }
   return out;
 }
-function post(url, fd, onProg, tries = 3) {         // XHR : progression d'envoi réelle, 3 essais (réveil / redémarrage du serveur)
+function post(url, fd, onProg, tries = 3, n = 0) {   // XHR : progression réelle ; réessais (réveil/redémarrage) et attente progressive si « trop de requêtes » (429)
   return postOnce(url, fd, onProg).catch(async e => {
-    if (tries > 1 && /Connexion interrompue|HTTP 50[234]/.test(e.message)) { await new Promise(r => setTimeout(r, 4000)); return post(url, fd, onProg, tries - 1); }
+    const limited = /HTTP 429/.test(e.message);
+    if ((limited ? n < 8 : tries > 1 && /Connexion interrompue|HTTP 50[234]/.test(e.message))) {
+      const wait = limited ? Math.max(e.retryAfter || 0, Math.min(30, 3 * (n + 1))) : 4;
+      if (limited) { S.notice = `Serveur très sollicité (limite de requêtes) : nouvelle tentative dans ${wait} s… vos données sont conservées.`; render(); }
+      await new Promise(r => setTimeout(r, wait * 1000));
+      return post(url, fd, onProg, limited ? tries : tries - 1, n + 1);
+    }
     throw e;
   });
 }
@@ -297,7 +311,7 @@ function postOnce(url, fd, onProg) {
     x.open("POST", url);
     x.upload.onprogress = e => e.lengthComputable && onProg(e.loaded / e.total);
     x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch {}
-      x.status < 300 ? resolve(j) : reject(new Error(typeof j.detail === "string" ? j.detail : `HTTP ${x.status}`)); };
+      if (x.status < 300) resolve(j); else { const er = new Error(typeof j.detail === "string" ? j.detail : `HTTP ${x.status}`); er.retryAfter = +x.getResponseHeader("Retry-After") || 0; reject(er); } };
     x.onerror = () => reject(new Error("Connexion interrompue pendant l’envoi."));
     x.send(fd);
   });
@@ -410,7 +424,7 @@ function pollJob() {
       if (transient(e) && ++pollFails <= 60) { S.notice = "Reconnexion au serveur… l’analyse continue côté serveur."; render(); pollJob(); return; }   // déploiement / réveil de l'hébergement
       S.error = friendly(e); S.job = null; render();
     }
-  }, pollFails ? 3000 : 1200);
+  }, pollFails ? 4000 : 2500);
 }
 
 // ---------------------------------------------------------------- rendu
