@@ -178,6 +178,16 @@ class ClaudeVisionExtractor:
                    for f in ("nom", "prenoms", "numero_piece"))
 
     def extract(self, img: Image.Image) -> Extraction:
+        if max(img.size) > 2200:   # photos de téléphone (12 Mpx+) : on réduit d'abord, la mémoire de l'hébergement est limitée
+            img = img.copy()
+            img.thumbnail((2200, 2200), Image.LANCZOS)
+        try:
+            return self._extract(img)
+        finally:
+            import gc
+            gc.collect()
+
+    def _extract(self, img: Image.Image) -> Extraction:
         a = self._read(img)
         if not self.precision or a.erreur or not a.lisible or a.face == "VERSO":
             return a

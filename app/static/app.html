@@ -87,6 +87,16 @@ details.actor>summary::-webkit-details-marker{display:none}
 .thumb{width:92px;height:70px;border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:#eef2f0;padding:0}
 .thumb.sel{border-color:var(--g2)}.thumb img{width:100%;height:100%;object-fit:cover}
 .actor-body .thumb{width:150px;height:110px}
+.lb{position:fixed;inset:0;background:rgba(10,18,16,.88);z-index:50;display:flex;gap:14px;padding:14px;align-items:stretch}
+.lb .lbimg{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.lb .lbstage{flex:1;overflow:auto;background:#1d2523;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.lb .lbstage img{max-width:100%;max-height:100%;transition:transform .2s;cursor:zoom-in}
+.lb .lbstage.zoom img{max-width:none;max-height:none;cursor:zoom-out}
+.lb .lbside{width:340px;max-width:40vw;background:#fff;border-radius:10px;padding:14px;overflow:auto;font-size:14px}
+.lb .lbside h3{margin:0 0 8px}.lb .lbside dl{margin:0 0 10px}.lb .lbside dt{font-size:12px;color:#5b6b66;margin-top:8px}.lb .lbside dd{margin:0;font-weight:600;word-break:break-word}
+.lb .row{display:flex;gap:6px;flex-wrap:wrap}.lb .ok{color:#1b7a4b}.lb .ko{color:#b3261e}
+@media(max-width:800px){.lb{flex-direction:column}.lb .lbside{width:auto;max-width:none;max-height:40vh}}
+
 .viewer .stage{background:#1d2523;border-radius:10px;height:430px;overflow:auto;display:flex;align-items:center;justify-content:center}
 .viewer img{max-width:100%;max-height:100%;transition:transform .2s}
 .viewer .stage.zoom img{max-width:none;max-height:none;cursor:zoom-out}
@@ -290,6 +300,35 @@ function applyFresh(fresh) {
   });
   const c = cur(); if (c) scheduleEval();   // les observations sont recalculées avec la saisie manuelle
 }
+
+// ---------------------------------------------------------------- pièce agrandie + confrontation avec les informations de l'acteur
+function openBox(name, ai) {
+  const c = cur(); if (!c) return;
+  const a = c.actors[ai]; if (!a) return;
+  const k = autoState(a) || {};
+  const same = (x, y) => x && y && norm(x) === norm(y);
+  const cmp = (csv, read) => !read ? '<span>— non lu</span>' : (same(csv, read) ? `<span class="ok">✔ ${esc(read)}</span>` : `<span class="ko">≠ ${esc(read)}</span>`);
+  const d = document.createElement("div"); d.className = "lb"; d.id = "lb";
+  d.innerHTML = `<div class="lbimg"><div class="row"><strong style="color:#fff;flex:1">${esc(a.role)} — ${esc(name)}</strong>
+      <button data-lb="rot">⟳ Pivoter</button><button data-lb="zoom">Zoom</button><button data-lb="close">✕ Fermer</button></div>
+      <div class="lbstage"><img src="${scanUrl(name)}" alt="Pièce"></div></div>
+    <aside class="lbside"><h3>${esc(a.role)}</h3>
+      <dl><dt>Nom et prénom (saisie)</dt><dd>${esc(a.name || "—")}</dd><dt>Nom lu sur la pièce</dt><dd>${cmp(a.name, k.observedName)}</dd>
+      <dt>Numéro de pièce (saisie)</dt><dd>${esc(a.id || "—")}</dd><dt>Numéro lu sur la pièce</dt><dd>${cmp(a.id, k.observedId)}</dd>
+      <dt>Contact</dt><dd>${esc(a.phone || "—")}</dd><dt>Contrôle automatique</dt><dd>${esc(k.detail || k.status || "pas encore analysé")}</dd></dl>
+      <small style="color:#5b6b66">Cliquez sur l'image pour zoomer. Échap pour fermer.</small></aside>`;
+  document.body.appendChild(d);
+  let rot = 0;
+  const st = d.querySelector(".lbstage"), im = d.querySelector("img");
+  const close = () => { d.remove(); document.removeEventListener("keydown", onkey); };
+  const onkey = e => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onkey);
+  d.addEventListener("click", e => {
+    const b = e.target.closest("[data-lb]");
+    if (b) { const v = b.dataset.lb; if (v === "close") close(); else if (v === "rot") { rot = (rot + 90) % 360; im.style.transform = `rotate(${rot}deg)`; } else st.classList.toggle("zoom"); return; }
+    if (e.target === im) st.classList.toggle("zoom"); else if (e.target === d) close();
+  });
+}
 function pollJob() {
   clearTimeout(pollTimer);
   pollTimer = setTimeout(async () => {
@@ -392,11 +431,12 @@ function renderActor(a, i, c) {
       `<label>${l}<input data-a="${i}" data-k="${k}" value="${esc(a[k])}"></label>`).join("")}</div>
     <label class="checkbox"><input type="checkbox" data-a="${i}" data-k="signed" ${a.signed ? "checked" : ""}>Signature présente</label>
     <div class="astatus">${sticker(a)}${idResults(a)}</div>
-    <div class="thumbs">${scans.map(n => `<button class="thumb ${n === S.piece ? "sel" : ""}" data-act="piece" data-name="${esc(n)}" title="${esc(n)}"><img loading="lazy" src="${scanUrl(n)}" alt=""></button>`).join("")
+    <div class="thumbs">${scans.map(n => `<button class="thumb ${n === S.piece ? "sel" : ""}" data-act="box" data-i="${i}" data-name="${esc(n)}" title="Agrandir : ${esc(n)}"><img loading="lazy" src="${thumbUrl(n)}" alt=""></button>`).join("")
       || '<small style="color:var(--mut)">Aucun scan rattaché.</small>'}</div>
     <p><button data-act="attach" data-i="${i}">📎 Importer une pièce pour cet acteur</button></p></div></details>`;
 }
 const scanUrl = (n, page = 0) => `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}${page ? "?page=" + page : ""}`;
+const thumbUrl = n => `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}?thumb=1`;
 function renderObs(c) {
   return `<h2>Observations <span class="count">${c.observations.length}</span></h2>${c.observations.length ? c.observations.map((o, i) => `<div class="obs"><div>
     <span class="tag">${esc(o.group)} · ${esc(o.level)}</span><p>${esc(o.text)}</p></div>
@@ -415,7 +455,7 @@ function renderViewer(c) {
       onerror="this.replaceWith(Object.assign(document.createElement('p'),{textContent:'Image illisible dans le navigateur — utilisez Ouvrir.',style:'color:#fff;padding:20px'}))"></div>
     <details id="exj"><summary>Lecture automatique (JSON)</summary><pre id="exjpre">Chargement…</pre></details>`
     : '<div class="stage"><p style="color:#9fb2ad">Sélectionnez une pièce dans la liste d’un acteur.</p></div>'}
-    <div class="thumbs">${all.map(n => `<button class="thumb ${n === p ? "sel" : ""}" data-act="piece" data-name="${esc(n)}" title="${esc(n)}"><img loading="lazy" src="${scanUrl(n)}" alt=""></button>`).join("")}</div>
+    <div class="thumbs">${all.map(n => `<button class="thumb ${n === p ? "sel" : ""}" data-act="piece" data-name="${esc(n)}" title="${esc(n)}"><img loading="lazy" src="${thumbUrl(n)}" alt=""></button>`).join("")}</div>
     <p class="hint">Consultez la pièce avant de confirmer l’identité.</p></div>`;
 }
 function renderFiche() {
@@ -498,6 +538,7 @@ document.addEventListener("click", async ev => {
   if (act === "next") { S.page++; render(); return; }
   if (act === "clr-err") { S.error = ""; render(); return; }
   if (act === "clr-notice") { S.notice = ""; render(); return; }
+  if (act === "box") { openBox(t.dataset.name, +t.dataset.i); return; }
   if (act === "piece") { S.piece = t.dataset.name; S.rot = 0; S.zoom = false; render(); return; }
   if (act === "rot") { S.rot = (S.rot + 90) % 360; $("#vimg").style.transform = `rotate(${S.rot}deg)`; return; }
   if (act === "zoom") { S.zoom = !S.zoom; render(); return; }
