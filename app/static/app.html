@@ -157,16 +157,43 @@ const run = async (label, fn) => {
 
 // ---------------------------------------------------------------- copie locale (navigateur) : les données ne repartent jamais de zéro
 const LB = {
-  db() { return new Promise((res, rej) => { const r = indexedDB.open("presfor-backup", 1); r.onupgradeneeded = () => r.result.createObjectStore("c", {keyPath: "id"}); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  async put(rec) { try { const d = await this.db(); await new Promise((ok, ko) => { const t = d.transaction("c", "readwrite"); t.objectStore("c").put(rec); t.oncomplete = ok; t.onerror = () => ko(t.error); }); } catch {} },
-  async all() { try { const d = await this.db(); return await new Promise((ok, ko) => { const q = d.transaction("c").objectStore("c").getAll(); q.onsuccess = () => ok(q.result); q.onerror = () => ko(q.error); }); } catch { return []; } },
-  async del(id) { try { const d = await this.db(); d.transaction("c", "readwrite").objectStore("c").delete(id); } catch {} },
+  urls: new Map(),
+  db() { return new Promise((res, rej) => { const r = indexedDB.open("presfor-backup", 2);
+    r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains("c")) d.createObjectStore("c", {keyPath: "id"}); if (!d.objectStoreNames.contains("img")) d.createObjectStore("img", {keyPath: "key"}); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async _tx(store, mode, fn) { try { const d = await this.db(); return await new Promise((ok, ko) => { const t = d.transaction(store, mode); const q = fn(t.objectStore(store)); t.oncomplete = () => ok(q && q.result); t.onerror = () => ko(t.error); }); } catch { return undefined; } },
+  put(rec) { return this._tx("c", "readwrite", o => o.put(rec)); },
+  all() { return this._tx("c", "readonly", o => o.getAll()).then(r => r || []); },
+  get(id) { return this._tx("c", "readonly", o => o.get(id)); },
+  del(id) { this.dropImages(id); return this._tx("c", "readwrite", o => o.delete(id)); },
+  putImg(cid, name, blob) { this.urls.set(cid + "|" + name, URL.createObjectURL(blob)); return this._tx("img", "readwrite", o => o.put({key: cid + "|" + name, cid, name, blob})); },
+  async loadImages(cid) {   // recharge toutes les images locales d'une campagne en URLs utilisables par <img>
+    const rows = (await this._tx("img", "readonly", o => o.getAll())) || []; let n = 0;
+    for (const r of rows) if (r.cid === cid) { if (!this.urls.has(r.key)) this.urls.set(r.key, URL.createObjectURL(r.blob)); n++; }
+    return n;
+  },
+  async countImages(cid) { return ((await this._tx("img", "readonly", o => o.getAllKeys())) || []).filter(k => k.startsWith(cid + "|")).length; },
+  async dropImages(cid) { const keys = ((await this._tx("img", "readonly", o => o.getAllKeys())) || []).filter(k => k.startsWith(cid + "|")); for (const k of keys) { this.urls.delete(k); await this._tx("img", "readwrite", o => o.delete(k)); } },
 };
+async function saveLocalNow() {   // saisie manuelle toujours conservée localement, même si le serveur est vide ou injoignable
+  const c = S.campaign; if (!c) return;
+  const prev = await LB.get(c.id);
+  await LB.put({id: c.id, title: c.title, at: Date.now(), data: {campaign: c, ocr: prev?.data?.ocr || {}}});
+}
+async function cacheImages(cid, names) {
+  const have = new Set([...LB.urls.keys()]);
+  const todo = names.filter(n => !have.has(cid + "|" + n)); S.cache = {done: 0, total: todo.length}; render();
+  for (const n of todo) {
+    try { const r = await fetch(`/api/campaigns/${cid}/scans/${encodeURIComponent(n)}?size=1400`); if (r.ok) await LB.putImg(cid, n, await r.blob()); } catch {}
+    S.cache.done++; if (S.cache.done % 10 === 0) render();
+  }
+  S.notice = `Pièces enregistrées en local : ${todo.length ? todo.length + " nouvelle(s)" : "déjà à jour"}.`; S.cache = null; render();
+}
 let mirrorTimer;
 function mirrorLocal() {
   clearTimeout(mirrorTimer);
   mirrorTimer = setTimeout(async () => {
-    const c = S.campaign; if (!c || S.dirty) return;
+    const c = S.campaign; if (!c || S.dirty || S.localMode) return;
     try { const data = await json(`/api/campaigns/${c.id}/backup`); await LB.put({id: c.id, title: c.title, at: Date.now(), data}); } catch {}
   }, 4000);
 }
@@ -221,13 +248,16 @@ function scheduleEval() {
         live.actors.forEach((a, n) => { if (r.actors[n]) a.automatic = r.actors[n].automatic; });
       }
       paintFicheLive();
-    } catch (e) { S.error = e.message; render(); }
+    } catch (e) { if (!S.localMode) { S.error = e.message; render(); } }
   }, 450);
 }
 async function save(imported = false) {
   const c = S.campaign; if (!c) return;
-  const r = await json(`/api/campaigns/${c.id}`, {method:"PUT", headers:{"Content-Type":"application/json"},
-                       body:JSON.stringify({title:c.title, contracts:c.contracts})});
+  if (S.localMode) { await saveLocalNow(); S.dirty = false; S.notice = "Enregistré localement (mode local)."; return; }
+  let r;
+  try { r = await json(`/api/campaigns/${c.id}`, {method:"PUT", headers:{"Content-Type":"application/json"},
+                       body:JSON.stringify({title:c.title, contracts:c.contracts})}); }
+  catch (e) { await saveLocalNow(); S.dirty = false; S.notice = "Serveur indisponible : saisie enregistrée dans ce navigateur."; return; }
   c.updated = r.updated; c.loadedAt = r.loadedAt; c.contracts = r.contracts; S.dirty = false;
   await refreshHistory();
 }
@@ -440,6 +470,24 @@ function renderContracts() {
         <button data-act="next" ${S.page >= pages - 1 ? "disabled" : ""}>→</button></div></div>`
     : '<div class="panel empty"><h2>Aucun contrat</h2><p>Importez un export CSV (DIGIFOR) et/ou un ZIP de scans pour commencer.</p></div>'}`;
 }
+
+async function localList() {
+  const rows = await LB.all(), out = [];
+  for (const r of rows) out.push({id: r.id, title: r.title, at: r.at, contracts: (r.data?.campaign?.contracts || []).length,
+    scans: (r.data?.campaign?.scanNames || []).length, images: await LB.countImages(r.id)});
+  return out.sort((a, b) => b.at - a.at);
+}
+function renderLocal() {
+  const cur_ = S.campaign;
+  return `<div class="panel"><h2>Mes données locales</h2>
+    <p>Une copie de vos campagnes (contrats, saisies, lectures) et des pièces est conservée dans <b>ce navigateur</b> : le contrôle manuel reste possible même si le serveur redémarre ou est vide. Ne videz pas les données de site de ce navigateur.</p>
+    ${S.cache ? `<p><b>Enregistrement des pièces… ${S.cache.done} / ${S.cache.total}</b></p>` : ""}
+    ${cur_ && !S.localMode ? `<p><button data-act="cacheimg">⬇ Enregistrer les pièces de « ${esc(cur_.title)} » en local</button></p>` : ""}
+    ${(S.locals || []).length ? S.locals.map(l => `<div class="hrow"><button class="hist" data-act="openlocal" data-id="${esc(l.id)}"><div><strong>${esc(l.title)}</strong>
+      <small>${l.contracts} contrats · ${l.images} / ${l.scans} pièces en local · copie du ${dateLabel(new Date(l.at).toISOString())}</small></div></button>
+      <button data-act="pushlocal" data-id="${esc(l.id)}" title="Recréer sur le serveur">⬆ Renvoyer au serveur</button>
+      <button class="danger" data-act="dellocal" data-id="${esc(l.id)}">🗑</button></div>`).join("") : "<p>Aucune copie locale pour l'instant : ouvrez une campagne, elle sera copiée automatiquement.</p>"}</div>`;
+}
 function renderHistory() {
   return `<div class="panel"><h2>Campagnes enregistrées</h2>${S.history.length ? S.history.map(h => `<div class="hrow">
     <button class="hist" data-act="load" data-id="${esc(h.id)}"><div><strong>${esc(h.title)}</strong><small>${h.contracts} contrats · Dernier chargement : ${dateLabel(h.loadedAt)}</small>
@@ -459,8 +507,8 @@ function renderActor(a, i, c) {
       || '<small style="color:var(--mut)">Aucun scan rattaché.</small>'}</div>
     <p><button data-act="attach" data-i="${i}">📎 Importer une pièce pour cet acteur</button></p></div></details>`;
 }
-const scanUrl = (n, page = 0) => `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}${page ? "?page=" + page : ""}`;
-const thumbUrl = n => `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}?thumb=1`;
+const scanUrl = (n, page = 0) => LB.urls.get(S.campaign.id + "|" + n) || `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}${page ? "?page=" + page : ""}`;
+const thumbUrl = n => LB.urls.get(S.campaign.id + "|" + n) || `/api/campaigns/${S.campaign.id}/scans/${encodeURIComponent(n)}?thumb=1`;
 function renderObs(c) {
   return `<h2>Observations <span class="count">${c.observations.length}</span></h2>${c.observations.length ? c.observations.map((o, i) => `<div class="obs"><div>
     <span class="tag">${esc(o.group)} · ${esc(o.level)}</span><p>${esc(o.text)}</p></div>
@@ -516,12 +564,13 @@ function render() {
     <div class="brand">PRESFOR<small>CTB · Région NAWA</small></div><div class="side-label">ESPACE DE CONTRÔLE</div>
     <button class="nav ${S.view !== "history" ? "active" : ""}" data-act="nav" data-v="contracts">📋 Contrats</button>
     <button class="nav ${S.view === "history" ? "active" : ""}" data-act="nav" data-v="history">📁 Campagnes sauvegardées</button>
+    <button class="nav ${S.view === "local" ? "active" : ""}" data-act="nav" data-v="local">💾 Mes données locales</button>
     <div class="side-label">OUTILS</div><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/cf">🗂 Contrôle pièce CF</a><a class="nav" style="text-decoration:none;display:block;padding:10px" href="/identite">🪪 Contrôle d’identité (lot)</a>
     <div class="side-note"><strong>Vos règles, appliquées</strong><p>Signature renseignée : présente.<br>Numéro de demande à renseigner pour chaque contrat.</p>
     ${S.health ? `<small>Moteur pièces : ${esc(S.health.backend_par_defaut)}</small>` : ""}</div></aside>
   <main><header class="top"><button data-act="side">☰</button><div class="crumb">Contrôle des contrats › ${crumb}</div></header>
   <div class="content"><div class="heading"><div><span class="eyebrow">QUALITÉ DES DONNÉES</span>
-    <h1>${S.view === "history" ? "Vos campagnes" : S.view === "fiche" ? "Fiche de contrôle" : "Contrôle des contrats"}</h1>
+    <h1>${S.view === "local" ? "Mes données locales" : S.view === "history" ? "Vos campagnes" : S.view === "fiche" ? "Fiche de contrôle" : "Contrôle des contrats"}</h1>
     <p>${S.view === "fiche" ? "Vérifiez les informations, consultez les pièces et renseignez vos observations." : "Une vue claire des contrats, des pièces et des points à corriger."}</p></div>
     <div class="actions">
       <div class="menu"><button data-act="menu">⬆ Importer ▾</button><div class="pop"><button data-act="pick" data-t="any">⬆ Importer fichiers / ZIP</button><button data-act="pick" data-t="dir">📁 Importer un dossier de scans</button></div></div>
@@ -535,7 +584,7 @@ function render() {
     ${S.notice ? `<div class="banner" role="status"><div>${esc(S.notice)}</div><button data-act="clr-notice">✕</button></div>` : ""}
     ${S.busy ? `<div class="banner" role="status"><div>${esc(S.busy)}${S.progress != null ? `<div class="bar"><i style="width:${S.progress}%"></i></div>` : ""}</div></div>` : ""}
     ${job ? `<div class="banner" role="status"><div>Lecture des pièces : ${job.done}/${job.total || "…"}<div class="bar"><i style="width:${job.total ? (100 * job.done / job.total) : 3}%"></i></div></div></div>` : ""}
-    ${S.view === "history" ? renderHistory() : S.view === "fiche" ? renderFiche() : renderContracts()}
+    ${S.view === "local" ? renderLocal() : S.view === "history" ? renderHistory() : S.view === "fiche" ? renderFiche() : renderContracts()}
   </div></main></div>`;
   if (S.view === "fiche" && S.piece) loadExtraction();
 }
@@ -556,13 +605,18 @@ document.addEventListener("click", async ev => {
   if (act === "menu") { t.parentElement.classList.toggle("open"); return; }
   if (act === "pick") { document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open")); $(t.dataset.t === "dir" ? "#fileDir" : "#fileAny").click(); return; }
   if (act === "side") { S.sidebar = !S.sidebar; render(); return; }
-  if (act === "nav") { S.view = t.dataset.v; S.sel = null; S.piece = ""; if (S.view === "history") await refreshHistory().catch(() => {}); render(); return; }
+  if (act === "nav") { S.view = t.dataset.v; S.sel = null; S.piece = ""; if (S.view === "history") await refreshHistory().catch(() => {}); if (S.view === "local") S.locals = await localList(); render(); return; }
   if (act === "open") { S.sel = t.dataset.key; S.view = "fiche"; S.piece = ""; S.rot = 0; S.zoom = false; render(); const c = cur(); const f = c && c.actors.flatMap(actorScans)[0]; if (f) { S.piece = f; render(); } return; }
   if (act === "back") { S.view = "contracts"; S.sel = null; S.piece = ""; render(); return; }
   if (act === "prev") { S.page--; render(); return; }
   if (act === "next") { S.page++; render(); return; }
   if (act === "clr-err") { S.error = ""; render(); return; }
   if (act === "clr-notice") { S.notice = ""; render(); return; }
+  if (act === "cacheimg") { const names = [...new Set((S.campaign.contracts || []).flatMap(c => c.actors.flatMap(actorScans)))]; cacheImages(S.campaign.id, names.length ? names : S.campaign.scanNames); return; }
+  if (act === "openlocal") { const r = await LB.get(t.dataset.id); if (!r) return; S.campaign = r.data.campaign; S.localMode = true; S.dirty = false; S.view = "contracts"; S.sel = null; S.piece = ""; S.page = 0;
+    await LB.loadImages(r.id); S.notice = "Mode local : vous travaillez sur la copie de ce navigateur (le serveur n'est pas modifié tant que vous ne la renvoyez pas)."; render(); return; }
+  if (act === "pushlocal") { const r = await LB.get(t.dataset.id); try { const j = await json("/api/campaigns/restore", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(r.data)}); S.notice = j.restored ? "Campagne recréée sur le serveur." : "Cette campagne existe déjà sur le serveur."; await refreshHistory(); } catch (e) { S.error = "Serveur injoignable : " + e.message; } render(); return; }
+  if (act === "dellocal") { if (!confirm("Supprimer cette copie locale (le serveur n'est pas touché) ?")) return; await LB.del(t.dataset.id); S.locals = await localList(); render(); return; }
   if (act === "vbox") { const cc = cur(); const i = cc ? cc.actors.findIndex(a => actorScans(a).includes(S.piece)) : -1; if (i >= 0) openBox(S.piece, i); else { S.zoom = !S.zoom; render(); } return; }
   if (act === "box") { openBox(t.dataset.name, +t.dataset.i); return; }
   if (act === "piece") { S.piece = t.dataset.name; S.rot = 0; S.zoom = false; render(); return; }
@@ -576,7 +630,7 @@ document.addEventListener("click", async ev => {
   if (act === "full") { document.querySelectorAll(".menu.open").forEach(m => m.classList.remove("open"));
     await download(`/api/campaigns/${S.campaign.id}/export/full`, "Assemblage du dossier complet (les pièces peuvent être volumineuses)…",
       r => `${r.headers.get("X-Pieces-Exportees")} pièces exportées dans PIECE SCANNEE${+r.headers.get("X-Pieces-Introuvables") ? " · " + r.headers.get("X-Pieces-Introuvables") + " références introuvables (voir inventaire)" : ""}`); return; }
-  if (act === "load") { await run("Ouverture…", async () => { S.campaign = await json(`/api/campaigns/${t.dataset.id}`); S.view = "contracts"; S.sel = null; S.piece = ""; S.page = 0; S.dirty = false; S.notice = "Campagne chargée. Les pièces sauvegardées sont disponibles."; }); return; }
+  if (act === "load") { await run("Ouverture…", async () => { S.localMode = false; await LB.loadImages(t.dataset.id); S.campaign = await json(`/api/campaigns/${t.dataset.id}`); S.view = "contracts"; S.sel = null; S.piece = ""; S.page = 0; S.dirty = false; S.notice = "Campagne chargée. Les pièces sauvegardées sont disponibles."; }); return; }
   if (act === "del") {
     if (!confirm(`Supprimer la campagne « ${t.dataset.title} » et toutes ses pièces sauvegardées ? Cette action est définitive.`)) return;
     await run("Suppression…", async () => {
@@ -631,13 +685,15 @@ window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault()
 
 (async () => {
   render();
-  try { S.health = await json("/api/health"); await refreshHistory(); await restoreMissing(); } catch (e) { S.error = "Historique indisponible : " + e.message; }
+  try { S.health = await json("/api/health"); await refreshHistory(); await restoreMissing(); }
+  catch (e) { S.error = "Serveur indisponible : " + e.message; S.locals = await localList(); if (S.locals.length) { S.view = "local"; S.notice = "Serveur injoignable : ouvrez une copie locale pour continuer le contrôle manuel."; } }
   json("/api/storage").then(st => { if (st.enabled && st.reachable === false) { S.notice = "⚠ Sauvegarde externe indisponible (" + (st.erreur || "projet en pause") + "). Une copie est conservée dans ce navigateur ; ne videz pas ses données."; render(); } }).catch(() => {});
   // reprise : on rouvre la dernière campagne et on se rattache à l'analyse éventuellement encore en cours côté serveur
   try {
     let last = null; try { last = localStorage.getItem("presfor.cid"); } catch {}
     const id = (S.history.find(h => h.id === last) || S.history[0] || {}).id;
     if (id) {
+      await LB.loadImages(id);
       S.campaign = await json(`/api/campaigns/${id}`);
       const j = await json(`/api/campaigns/${id}/identity/status`);
       if (j.status === "running") { S.job = j; S.applied = j.applied || 0; pollJob(); }

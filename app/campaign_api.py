@@ -252,12 +252,18 @@ def import_files(cid: str, files: list[UploadFile] = File(...), light: str = For
 
 # ------------------------------------------------------------------ scans
 @router.get("/{cid}/scans/{name:path}")
-def get_scan(cid: str, name: str, page: int = 0, thumb: int = 0) -> Response:
+def get_scan(cid: str, name: str, page: int = 0, thumb: int = 0, size: int = 0) -> Response:
     _get(cid)
     base = safe_name(name.split("#p")[0])
     p = store().scans_dir(cid) / base
     if not p.is_file():
         raise HTTPException(404, "scan introuvable")
+    if size:    # version réduite pour la copie locale du navigateur (lisible, ~200 Ko)
+        try:
+            jpeg = to_jpeg_bytes(load_page(p, page, dpi=120), max_side=max(600, min(size, 2000)), quality=75)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(422, f"lecture impossible : {e}") from e
+        return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
     if thumb:   # miniature légère : évite de charger N photos pleine taille (saturation / HTTP 429 / mémoire)
         try:
             jpeg = to_jpeg_bytes(load_page(p, page, dpi=80), max_side=360, quality=70)
