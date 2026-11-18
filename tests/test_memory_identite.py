@@ -37,3 +37,12 @@ def test_enregistrement_manuel_garde_analyse_recente():
     out = _merge_auto(serveur, client)
     assert out[0]["manual"] == "saisie" and out[0]["actors"][0]["name"] == "A modifié"
     assert out[0]["actors"][0]["automatic"]["status"] == "validé"
+
+
+def test_scan_importe_non_lu_est_rattache_en_attente():
+    from app.identity_check import apply_identity
+    a = {"role": "Propriétaire", "name": "Tagro Kore Charles", "id": "CI007461947", "pieces": ["a.jpg"]}
+    camp = {"contracts": [{"number": "CT-1", "type": "PP_PLANTATION", "raw": {}, "actors": [a], "observations": []}]}
+    out = apply_identity(camp, {}, Path("."), ["a.jpg"], get_settings(), only_stale=True)
+    chk = out["contracts"][0]["actors"][0]["automatic"]
+    assert chk["state"] == "pending" and chk["pieces"] == ["a.jpg"]

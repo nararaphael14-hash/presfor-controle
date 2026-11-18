@@ -126,6 +126,11 @@ def check_actor(contract: str, actor: dict, names: list[str], aliases: dict[str,
                 "nameMatched": True, "idMatched": True, "pieces": files_of(links),
                 "detail": "Identité déjà validée lors d'une analyse précédente (mémoire)", "confidence": 100,
                 "score": 100, "birthMismatch": False, "documentTypes": []}
+    if links and all(l.scan.extraction is None for l in links):
+        return {"version": VERSION, "expectedName": actor.get("name") or "", "expectedId": actor.get("id") or "",
+                "status": "non vérifiable", "state": "pending", "nameStatus": "Non vérifiable", "idStatus": "Non vérifiable",
+                "nameMatched": False, "idMatched": False, "pieces": files_of(links), "confidence": 0, "score": 0,
+                "detail": "Pièce rattachée — lecture non effectuée (lancez « Contrôler les pièces »)"}
     base = {"version": VERSION, "expectedName": actor.get("name") or "", "expectedId": actor.get("id") or ""}
     files = list(dict.fromkeys(l.scan.path.name for l in links))
     if not links:
@@ -176,6 +181,11 @@ def apply_identity(campaign: dict, ocr: dict, scans_dir: Path, names: list[str],
                    only_stale: bool = False, verified: dict | None = None) -> dict:
     """Recalcule `automatic` de chaque acteur à partir des extractions déjà faites (aucun appel OCR/API)."""
     items = items_from_ocr(ocr, scans_dir)
+    read = {i.filename.partition("#p")[0] for i in items}
+    for n in names:   # scans importés mais pas encore lus : rattachés par leur nom, lecture « en attente »
+        if n not in read:
+            code, hint, _p = parse_scan_filename(n)
+            items.append(ScanItem(len(items), n, scans_dir / n, 0, code, hint, "", None))
     aliases = campaign.get("aliases", {})
     all_names = list(dict.fromkeys([*names, *[i.path.name for i in items]]))
     contracts = []
@@ -185,7 +195,7 @@ def apply_identity(campaign: dict, ocr: dict, scans_dir: Path, names: list[str],
             chk = a.get("automatic")
             fresh = (chk and chk.get("version") == VERSION and norm(chk.get("expectedName")) == norm(a.get("name"))
                      and norm(chk.get("expectedId")) == norm(a.get("id")))
-            if only_stale and fresh:
+            if only_stale and fresh and chk.get("state") not in ("missing", "pending"):
                 actors.append(a)
                 continue
             actors.append({**a, "automatic": check_actor(c["number"], a, all_names, aliases, items, settings, verified)})

@@ -86,7 +86,7 @@ details.actor>summary::-webkit-details-marker{display:none}
 .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .thumb{width:92px;height:70px;border:2px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:#eef2f0;padding:0}
 .thumb.sel{border-color:var(--g2)}.thumb img{width:100%;height:100%;object-fit:cover}
-.actor-body .thumb{width:150px;height:110px}
+.actor-body .thumb{width:72px;height:54px}
 .lb{position:fixed;inset:0;background:rgba(10,18,16,.88);z-index:50;display:flex;gap:14px;padding:14px;align-items:stretch}
 .lb .lbimg{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .lb .lbstage{flex:1;overflow:auto;background:#1d2523;border-radius:10px;display:flex;align-items:center;justify-content:center}
@@ -475,7 +475,7 @@ function renderViewer(c) {
   return `<h2>Pièce</h2><div class="viewer">${p ? `<div class="tools"><strong style="flex:1;align-self:center">${esc(owner ? owner.role + " — " + owner.name : "Pièce rattachée au contrat")}</strong>
     <button data-act="rot">⟳ Pivoter</button><button data-act="zoom">${S.zoom ? "Ajuster" : "Zoom"}</button>
     <a href="${scanUrl(p)}" target="_blank" rel="noopener"><button>↗ Ouvrir</button></a></div>
-    <div class="stage ${S.zoom ? "zoom" : ""}"><img id="vimg" data-act="zoom" src="${scanUrl(p)}" style="transform:rotate(${S.rot}deg)" alt="Pièce"
+    <div class="stage ${S.zoom ? "zoom" : ""}"><img id="vimg" data-act="vbox" src="${scanUrl(p)}" style="transform:rotate(${S.rot}deg)" alt="Pièce"
       onerror="this.replaceWith(Object.assign(document.createElement('p'),{textContent:'Image illisible dans le navigateur — utilisez Ouvrir.',style:'color:#fff;padding:20px'}))"></div>
     <details id="exj"><summary>Lecture automatique (JSON)</summary><pre id="exjpre">Chargement…</pre></details>`
     : '<div class="stage"><p style="color:#9fb2ad">Sélectionnez une pièce dans la liste d’un acteur.</p></div>'}
@@ -563,6 +563,7 @@ document.addEventListener("click", async ev => {
   if (act === "next") { S.page++; render(); return; }
   if (act === "clr-err") { S.error = ""; render(); return; }
   if (act === "clr-notice") { S.notice = ""; render(); return; }
+  if (act === "vbox") { const cc = cur(); const i = cc ? cc.actors.findIndex(a => actorScans(a).includes(S.piece)) : -1; if (i >= 0) openBox(S.piece, i); else { S.zoom = !S.zoom; render(); } return; }
   if (act === "box") { openBox(t.dataset.name, +t.dataset.i); return; }
   if (act === "piece") { S.piece = t.dataset.name; S.rot = 0; S.zoom = false; render(); return; }
   if (act === "rot") { S.rot = (S.rot + 90) % 360; $("#vimg").style.transform = `rotate(${S.rot}deg)`; return; }
