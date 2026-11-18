@@ -81,7 +81,7 @@ def _shutdown_persist() -> None:
 def storage_status() -> dict:
     from . import persist
 
-    return persist.status()
+    return persist.status(check=True)
 
 
 @app.get("/healthz", include_in_schema=False)

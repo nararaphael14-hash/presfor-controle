@@ -150,11 +150,18 @@ def delete_prefix(directory: Path) -> None:
 
 
 def _loop(root: Path, every: int) -> None:
+    last_touch = 0.0
     while True:
         time.sleep(every)
         try:
             push_all(root)
-        except Exception:  # noqa: BLE001
+            _state["last_ok"] = time.time()
+            _state["error"] = ""
+            if time.time() - last_touch > 6 * 3600:   # activité régulière : évite la mise en pause automatique du projet gratuit
+                _list(_prefix())
+                last_touch = time.time()
+        except Exception as e:  # noqa: BLE001
+            _state["error"] = f"{type(e).__name__}: {str(e)[:160]}"
             log.exception("synchronisation en erreur")
 
 
@@ -167,7 +174,8 @@ def start(root: Path, every: int = 15) -> bool:
     try:
         n = restore_small(root)
         log.info("persistance S3 : %d fichiers restaurés", n)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        _state["error"] = f"restauration impossible : {type(e).__name__}"
         log.exception("restauration impossible (le disque local sert de repli)")
     if _state["thread"] is None:
         t = threading.Thread(target=_loop, args=(root, every), daemon=True, name="persist")
@@ -180,5 +188,13 @@ def flush() -> int:
     return push_all(_state["root"]) if enabled() and _state["root"] else 0
 
 
-def status() -> dict:
-    return {"enabled": enabled(), "bucket": os.getenv("S3_BUCKET", ""), "fichiers_synchronises": len(_state["synced"])}
+def status(check: bool = False) -> dict:
+    out = {"enabled": enabled(), "bucket": os.getenv("S3_BUCKET", ""), "fichiers_synchronises": len(_state["synced"]),
+           "erreur": _state.get("error", ""), "reachable": None}
+    if check and enabled():
+        try:
+            _client().head_bucket(Bucket=_bucket())
+            out["reachable"], out["erreur"] = True, ""
+        except Exception as e:  # noqa: BLE001
+            out["reachable"], out["erreur"] = False, f"{type(e).__name__}: {str(e)[:160]}"
+    return out

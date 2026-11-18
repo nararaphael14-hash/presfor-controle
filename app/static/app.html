@@ -154,6 +154,30 @@ const run = async (label, fn) => {
   S.busy = ""; S.progress = null; render();
   if (S.autoIdent) { S.autoIdent = false; await runIdentity(); }   // contrôle des pièces automatique à chaque synchronisation
 };
+
+// ---------------------------------------------------------------- copie locale (navigateur) : les données ne repartent jamais de zéro
+const LB = {
+  db() { return new Promise((res, rej) => { const r = indexedDB.open("presfor-backup", 1); r.onupgradeneeded = () => r.result.createObjectStore("c", {keyPath: "id"}); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async put(rec) { try { const d = await this.db(); await new Promise((ok, ko) => { const t = d.transaction("c", "readwrite"); t.objectStore("c").put(rec); t.oncomplete = ok; t.onerror = () => ko(t.error); }); } catch {} },
+  async all() { try { const d = await this.db(); return await new Promise((ok, ko) => { const q = d.transaction("c").objectStore("c").getAll(); q.onsuccess = () => ok(q.result); q.onerror = () => ko(q.error); }); } catch { return []; } },
+  async del(id) { try { const d = await this.db(); d.transaction("c", "readwrite").objectStore("c").delete(id); } catch {} },
+};
+let mirrorTimer;
+function mirrorLocal() {
+  clearTimeout(mirrorTimer);
+  mirrorTimer = setTimeout(async () => {
+    const c = S.campaign; if (!c || S.dirty) return;
+    try { const data = await json(`/api/campaigns/${c.id}/backup`); await LB.put({id: c.id, title: c.title, at: Date.now(), data}); } catch {}
+  }, 4000);
+}
+async function restoreMissing() {
+  const have = new Set(S.history.map(h => h.id)); let n = 0;
+  for (const b of await LB.all()) {
+    if (have.has(b.id)) continue;
+    try { const r = await json("/api/campaigns/restore", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(b.data)}); if (r.restored) n++; } catch {}
+  }
+  if (n) { await refreshHistory(); S.notice = `${n} campagne(s) restaurée(s) depuis la copie de ce navigateur (données et saisies). Les images éventuellement perdues sont à réimporter.`; }
+}
 async function refreshHistory() { S.history = await json("/api/campaigns"); }
 
 // ---------------------------------------------------------------- données
@@ -483,6 +507,7 @@ function paintFicheLive() {   // met à jour badges / observations / contrôles 
   });
 }
 function render() {
+  if (S.campaign && !S.dirty) mirrorLocal();
   try { if (S.campaign) localStorage.setItem("presfor.cid", S.campaign.id); } catch {}
   const rows = S.campaign?.contracts || [];
   const crumb = S.view === "history" ? "Campagnes" : S.view === "fiche" && cur() ? esc(cur().number) : "Vue d’ensemble";
@@ -556,7 +581,7 @@ document.addEventListener("click", async ev => {
     await run("Suppression…", async () => {
       await api(`/api/campaigns/${t.dataset.id}`, {method:"DELETE"});
       if (S.campaign?.id === t.dataset.id) { S.campaign = null; S.sel = null; }
-      await refreshHistory(); S.notice = "Campagne et pièces supprimées.";
+      await refreshHistory(); LB.del(t.dataset.id); S.notice = "Campagne et pièces supprimées.";
     }); return;
   }
 });
@@ -605,7 +630,8 @@ window.addEventListener("beforeunload", e => { if (S.dirty) { e.preventDefault()
 
 (async () => {
   render();
-  try { S.health = await json("/api/health"); await refreshHistory(); } catch (e) { S.error = "Historique indisponible : " + e.message; }
+  try { S.health = await json("/api/health"); await refreshHistory(); await restoreMissing(); } catch (e) { S.error = "Historique indisponible : " + e.message; }
+  json("/api/storage").then(st => { if (st.enabled && st.reachable === false) { S.notice = "⚠ Sauvegarde externe indisponible (" + (st.erreur || "projet en pause") + "). Une copie est conservée dans ce navigateur ; ne videz pas ses données."; render(); } }).catch(() => {});
   // reprise : on rouvre la dernière campagne et on se rattache à l'analyse éventuellement encore en cours côté serveur
   try {
     let last = null; try { last = localStorage.getItem("presfor.cid"); } catch {}

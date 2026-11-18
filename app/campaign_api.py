@@ -110,6 +110,29 @@ def save_campaign(cid: str, body: dict) -> dict:
     return {"updated": c["updated"], "loadedAt": c.get("loadedAt"), "contracts": c["contracts"]}
 
 
+@router.get("/{cid}/backup")
+def backup(cid: str) -> dict:
+    """Copie complète (contrats, saisies, lectures) pour la sauvegarde locale du navigateur."""
+    c = _get(cid)
+    return {"campaign": c, "ocr": store().load_ocr(cid)}
+
+
+@router.post("/restore")
+def restore(body: dict) -> dict:
+    """Recrée une campagne disparue (redémarrage du serveur) depuis la copie du navigateur. N'écrase jamais l'existant."""
+    c, ocr = body.get("campaign"), body.get("ocr") or {}
+    if not isinstance(c, dict) or not valid_id(str(c.get("id", ""))) or not isinstance(c.get("contracts"), list):
+        raise HTTPException(400, "sauvegarde invalide")
+    st = store()
+    with st.lock:
+        if st.load(c["id"]) is not None:
+            return {"restored": False}
+        st.save(c, touch=False)
+        if isinstance(ocr, dict) and ocr:
+            st.save_ocr(c["id"], ocr)
+    return {"restored": True}
+
+
 @router.delete("/{cid}")
 def delete_campaign(cid: str) -> dict:
     _get(cid)
