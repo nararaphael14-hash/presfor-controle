@@ -76,16 +76,37 @@ def get_campaign(cid: str) -> dict:
     return _payload(_get(cid))
 
 
+def _merge_auto(server: list[dict], client: list[dict]) -> list[dict]:
+    """Saisie manuelle du client conservée ; résultats du contrôle automatique : le plus récent côté serveur
+    est gardé si le client a une copie plus ancienne (analyse terminée pendant l'édition)."""
+    by_key = {c.get("key"): c for c in server if c.get("key")}
+    out = []
+    for c in client:
+        sv = by_key.get(c.get("key"))
+        if sv:
+            actors = []
+            for i, a in enumerate(c.get("actors", [])):
+                sa = sv["actors"][i] if i < len(sv.get("actors", [])) else None
+                if sa and sa.get("automatic") and (sa["automatic"].get("version", 0) > (a.get("automatic") or {}).get("version", 0)
+                                                   or (not a.get("automatic"))):
+                    a = {**a, "automatic": sa["automatic"]}
+                actors.append(a)
+            c = {**c, "actors": actors}
+        out.append(c)
+    return out
+
+
 @router.put("/{cid}")
 def save_campaign(cid: str, body: dict) -> dict:
-    c = _get(cid)
     contracts = body.get("contracts")
     if not isinstance(contracts, list) or len(contracts) > 20000:
         raise HTTPException(400, "données invalides")
-    c["title"] = str(body.get("title") or c["title"])[:160]
-    c["contracts"] = contracts
-    c = _refresh(c, only_stale=True)
-    store().save(c)
+    with store().lock:   # sérialisé avec l'analyse des pièces : ni l'une ni l'autre n'écrase l'autre
+        c = _get(cid)
+        c["title"] = str(body.get("title") or c["title"])[:160]
+        c["contracts"] = _merge_auto(c["contracts"], contracts)
+        c = _refresh(c, only_stale=True)
+        store().save(c)
     return {"updated": c["updated"], "loadedAt": c.get("loadedAt"), "contracts": c["contracts"]}
 
 

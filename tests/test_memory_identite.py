@@ -28,3 +28,12 @@ def test_pas_de_mémoire_sans_scan_rattaché():
     a = _actor()
     chk = check_actor("CT-1", a, [], {}, [], get_settings(), {verified_key(a): {}})
     assert chk["pieces"] == [] and chk["status"] != "validé"
+
+
+def test_enregistrement_manuel_garde_analyse_recente():
+    from app.campaign_api import _merge_auto
+    serveur = [{"key": "k", "actors": [{"role": "Propriétaire", "name": "A", "automatic": {"version": 4, "status": "validé"}}]}]
+    client = [{"key": "k", "manual": "saisie", "actors": [{"role": "Propriétaire", "name": "A modifié"}]}]
+    out = _merge_auto(serveur, client)
+    assert out[0]["manual"] == "saisie" and out[0]["actors"][0]["name"] == "A modifié"
+    assert out[0]["actors"][0]["automatic"]["status"] == "validé"

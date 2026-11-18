@@ -280,6 +280,16 @@ async function runIdentity() {
   catch (e) { S.error = e.message; render(); return; }
   pollJob();
 }
+// Résultats de l'analyse automatique : la saisie manuelle en cours (non enregistrée) n'est JAMAIS écrasée.
+function applyFresh(fresh) {
+  if (!S.dirty) { S.campaign = fresh; return; }
+  const mine = new Map(S.campaign.contracts.map(x => [x.key, x]));
+  fresh.contracts.forEach(fc => {
+    const m = mine.get(fc.key); if (!m) return;
+    m.actors.forEach((a, i) => { if (fc.actors[i]) a.automatic = fc.actors[i].automatic; });   // seul le contrôle automatique est mis à jour
+  });
+  const c = cur(); if (c) scheduleEval();   // les observations sont recalculées avec la saisie manuelle
+}
 function pollJob() {
   clearTimeout(pollTimer);
   pollTimer = setTimeout(async () => {
@@ -289,16 +299,16 @@ function pollJob() {
       if (pollFails) { pollFails = 0; S.notice = ""; }
       if (S.job.status === "idle") { S.error = "Analyse interrompue : le serveur a redémarré (hébergement gratuit, données non conservées). Réimportez vos fichiers."; S.job = null; render(); return; }
       if (S.job.status === "running") {
-        if ((S.job.applied || 0) !== S.applied && !S.dirty && !S.busy) {   // résultats partiels : on rafraîchit sans bloquer l'écran
+        if ((S.job.applied || 0) !== S.applied && !S.busy) {   // résultats partiels : on rafraîchit sans bloquer l'écran
           S.applied = S.job.applied || 0;
           const keep = {sel:S.sel, piece:S.piece, view:S.view};
-          try { const fresh = await json(`/api/campaigns/${c.id}`); if (!S.dirty) { S.campaign = fresh; Object.assign(S, keep); } } catch {}
+          try { applyFresh(await json(`/api/campaigns/${c.id}`)); Object.assign(S, keep); } catch {}
         }
         render(); pollJob(); return;
       }
       if (S.job.status === "done") {
         const keep = {sel:S.sel, piece:S.piece, view:S.view};
-        S.campaign = await json(`/api/campaigns/${c.id}`);
+        applyFresh(await json(`/api/campaigns/${c.id}`));
         Object.assign(S, keep);
         S.notice = "Contrôle des pièces terminé.";
       } else if (S.job.status === "error") S.error = "Contrôle des pièces : " + S.job.error;
