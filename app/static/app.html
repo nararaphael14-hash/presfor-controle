@@ -417,6 +417,18 @@ function openBox(name, ai) {
     if (e.target === im) st.classList.toggle("zoom"); else if (e.target === d) close();
   });
 }
+function pollPublish() {
+  setTimeout(async () => {
+    try {
+      const j = await json(`/api/campaigns/${S.campaign.id}/publish/status`);
+      if (j.status === "running") { S.pub = j; S.notice = `Synchronisation vers le serveur central : ${j.step} — ${j.done} / ${j.total} pièces`; render(); pollPublish(); return; }
+      S.pub = null;
+      if (j.status === "done") S.notice = "Synchronisation terminée : la campagne et ses pièces sont sur le serveur central." + (j.note ? " (" + j.note + ")" : "");
+      else S.error = "Synchronisation impossible : " + (j.error || "erreur") + ". Vos données locales sont intactes ; relancez plus tard.";
+      render();
+    } catch { pollPublish(); }
+  }, 2500);
+}
 function pollJob() {
   clearTimeout(pollTimer);
   pollTimer = setTimeout(async () => {
@@ -611,6 +623,7 @@ function render() {
       <div class="menu"><button data-act="menu">⬆ Importer ▾</button><div class="pop"><button data-act="pick" data-t="any">⬆ Importer fichiers / ZIP</button><button data-act="pick" data-t="dir">📁 Importer un dossier de scans</button></div></div>
       ${rows.length ? `<select id="backend" title="Moteur de lecture des pièces" style="width:auto"><option value="auto" ${S.backend === "auto" ? "selected" : ""}>Moteur : auto</option>
         <option value="claude" ${S.backend === "claude" ? "selected" : ""}>Claude (vision)</option><option value="tesseract" ${S.backend === "tesseract" ? "selected" : ""}>Tesseract (local)</option></select>
+        ${S.health?.central ? `<button data-act="publish" ${S.pub ? "disabled" : ""} title="Envoie cette campagne (contrats, saisies, pièces) vers le serveur central">☁ Synchroniser vers le serveur central</button>` : ""}
         <button data-act="ident" ${job || !S.campaign.scanNames.length ? "disabled" : ""}>🔎 Contrôler les pièces</button>
         <button class="primary" data-act="remarks" ${S.busy ? "disabled" : ""}>⬇ Excel des remarques</button>
         <div class="menu"><button data-act="menu">⬇ Autres exports ▾</button><div class="pop"><button data-act="full">⬇ Dossier complet avec pièces</button></div></div>` : ""}
@@ -647,6 +660,12 @@ document.addEventListener("click", async ev => {
   if (act === "next") { S.page++; render(); return; }
   if (act === "clr-err") { S.error = ""; render(); return; }
   if (act === "clr-notice") { S.notice = ""; render(); return; }
+  if (act === "publish") {
+    const over = confirm("Synchroniser cette campagne vers le serveur central ?\n\nOK = envoyer et REMPLACER la version du serveur (si elle existe)\nAnnuler = ne rien faire");
+    if (!over) return;
+    try { S.pub = await json(`/api/campaigns/${S.campaign.id}/publish`, {method:"POST", body: (() => { const f = new FormData(); f.append("overwrite", "1"); return f; })()}); } catch (e) { S.error = e.message; render(); return; }
+    pollPublish(); return;
+  }
   if (act === "cacheimg") { const names = [...new Set((S.campaign.contracts || []).flatMap(c => c.actors.flatMap(actorScans)))]; cacheImages(S.campaign.id, names.length ? names : S.campaign.scanNames); return; }
   if (act === "openlocal") { const r = await LB.get(t.dataset.id); if (!r) return; S.campaign = r.data.campaign; S.localMode = true; S.dirty = false; S.view = "contracts"; S.sel = null; S.piece = ""; S.page = 0;
     await LB.loadImages(r.id); S.notice = "Mode local : vous travaillez sur la copie de ce navigateur (le serveur n'est pas modifié tant que vous ne la renvoyez pas)."; render(); return; }

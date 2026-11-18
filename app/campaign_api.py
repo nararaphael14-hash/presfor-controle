@@ -125,7 +125,7 @@ def restore(body: dict) -> dict:
         raise HTTPException(400, "sauvegarde invalide")
     st = store()
     with st.lock:
-        if st.load(c["id"]) is not None:
+        if st.load(c["id"]) is not None and not body.get("overwrite"):
             return {"restored": False}
         st.save(c, touch=False)
         if isinstance(ocr, dict) and ocr:

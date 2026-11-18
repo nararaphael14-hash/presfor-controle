@@ -51,6 +51,9 @@ async def basic_auth(request: Request, call_next):
 
 
 app.include_router(cf_router)   # /api/cf/valid/... avant /api/cf/{sid}
+from .publish import router as publish_router  # noqa: E402
+
+app.include_router(publish_router)
 app.include_router(campaign_router)
 
 
@@ -194,7 +197,8 @@ def identity_tool() -> FileResponse:
 def health() -> dict:
     s = get_settings()
     return {"ok": True, "backend_par_defaut": s.resolved_backend(), "modele": s.model,
-            "cle_api_presente": bool(s.api_key)}
+            "cle_api_presente": bool(s.api_key), "central": bool(os.environ.get("CENTRAL_URL")),
+            "local": os.environ.get("LOCAL_MODE", "") == "1"}
 
 
 @app.post("/api/csv/preview")

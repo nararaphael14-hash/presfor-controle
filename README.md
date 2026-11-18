@@ -212,3 +212,15 @@ Les fichiers modifiés partent toutes les 15 s et à l'arrêt ; les images d'un 
 Render arrête l'instance gratuite après 15 min sans requête, et le disque est alors vidé. Le workflow
 `.github/workflows/keepalive.yml` appelle `/healthz` toutes les 5 min (GitHub Actions, gratuit) : l'instance reste éveillée
 (750 h gratuites/mois = un service 24 h/24). Les redéploiements vident encore le disque : activez la persistance S3 ci-dessus.
+
+## Version locale (poste du contrôleur) + synchronisation facultative
+
+Chaque contrôleur peut travailler **seul sur son poste**, sans dépendre du serveur :
+1. Installer Python 3.12 (python.org, cocher « Add to PATH »), puis copier le dossier de l'application.
+2. Double-cliquer `run.bat` (Windows) ou lancer `./run.sh`. Le navigateur s'ouvre sur http://127.0.0.1:8000.
+3. Renseigner `.env` (copié depuis `.env.local.example`) : `ANTHROPIC_API_KEY` pour la lecture Claude vision.
+4. Importer l'export et les pièces, contrôler. Les données restent dans le dossier `donnees/` (rien n'est perdu à l'arrêt).
+
+**Synchroniser vers la base centrale (à la demande)** : renseigner dans `.env` `CENTRAL_URL`, `CENTRAL_USER`, `CENTRAL_PASSWORD`,
+puis cliquer sur « ☁ Synchroniser vers le serveur central » dans la campagne. Contrats, saisies manuelles, lectures et pièces
+(JPEG réduits à 1800 px) sont envoyés par lots avec reprise automatique. Rien n'est envoyé sans ce clic.
